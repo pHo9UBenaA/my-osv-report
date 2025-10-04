@@ -1,0 +1,318 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"log/slog"
+	"os"
+	"time"
+
+	"github.com/pHo9UBenaA/osv-scraper/src/config"
+	"github.com/pHo9UBenaA/osv-scraper/src/fetcher"
+	"github.com/pHo9UBenaA/osv-scraper/src/osv"
+	"github.com/pHo9UBenaA/osv-scraper/src/report"
+	"github.com/pHo9UBenaA/osv-scraper/src/store"
+)
+
+var (
+	fetchMode       = flag.Bool("fetch", false, "Fetch vulnerability data from OSV API")
+	reportMode      = flag.Bool("report", false, "Generate report instead of scraping")
+	reportFormat    = flag.String("format", "markdown", "Report format: markdown, csv, jsonl")
+	reportOutput    = flag.String("output", "./report.md", "Report output file path")
+	reportEcosystem = flag.String("ecosystem", "", "Filter report by ecosystem (empty = all)")
+	reportDiff      = flag.Bool("diff", false, "Generate differential report (only new/changed vulnerabilities)")
+	helpMode        = flag.Bool("help", false, "Show help message")
+)
+
+func main() {
+	flag.Parse()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	if err := run(); err != nil {
+		log.Fatalf("error: %v", err)
+	}
+}
+
+func run() error {
+	ctx := context.Background()
+
+	// Show help if no flags or help flag
+	if *helpMode || (!*fetchMode && !*reportMode) {
+		showHelp()
+		return nil
+	}
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Initialize store
+	st, err := store.NewStore(ctx, cfg.DBPath)
+	if err != nil {
+		return fmt.Errorf("new store: %w", err)
+	}
+	defer st.Close()
+
+	// Handle report mode
+	if *reportMode {
+		return generateReport(ctx, st)
+	}
+
+	// Handle fetch mode
+	if *fetchMode {
+		return fetchVulnerabilities(ctx, cfg, st)
+	}
+
+	return nil
+}
+
+func showHelp() {
+	fmt.Println(`
+WARNING: This package is a PILOT VERSION and has NOT been reviewed by contributors.
+Use with caution in production environments.
+
+OSV Scraper - Vulnerability Database Tool
+
+USAGE:
+  osv-scraper [command] [options]
+
+COMMANDS:
+  -fetch              Fetch latest vulnerability data from OSV API
+  -report             Generate report from local database
+  -help               Show this help message
+
+FETCH OPTIONS:
+  Environment variables:
+    OSV_ECOSYSTEMS          Comma-separated list of ecosystems (npm,pypi,go,etc)
+    OSV_API_BASE_URL        OSV API base URL (default: https://api.osv.dev)
+    OSV_DB_PATH             Database path (default: ./osv.db)
+    OSV_DATA_RETENTION_DAYS Data retention period in days (default: 7)
+
+REPORT OPTIONS:
+  -format <format>    Output format: markdown, csv, jsonl (default: markdown)
+  -output <file>      Output file path (default: ./report.md)
+  -ecosystem <name>   Filter by ecosystem (optional)
+  -diff               Generate differential report (new/changed vulnerabilities only)
+
+EXAMPLES:
+  # Fetch vulnerability data
+  OSV_ECOSYSTEMS=npm,pypi osv-scraper -fetch
+
+  # Generate markdown report
+  osv-scraper -report -format=markdown -output=report.md
+
+  # Generate differential CSV report for npm only
+  osv-scraper -report -diff -format=csv -ecosystem=npm -output=npm-diff.csv
+
+For more information, see: https://github.com/pHo9UBenaA/osv-scraper/
+// `)
+}
+
+func fetchVulnerabilities(ctx context.Context, cfg *config.Config, st *store.Store) error {
+	// Check ecosystems configuration
+	if len(cfg.Ecosystems) == 0 {
+		slog.Warn("no ecosystems configured, set OSV_ECOSYSTEMS environment variable")
+		return nil
+	}
+
+	slog.Info("starting vulnerability fetch", "ecosystems", cfg.Ecosystems)
+
+	// Process each ecosystem
+	apiClient := osv.NewClient(cfg.APIBaseURL)
+	adapter := &storeAdapter{s: st}
+	scraper := osv.NewScraper(apiClient, adapter)
+
+	var lastErr error
+	for _, eco := range cfg.Ecosystems {
+		if err := processEcosystem(ctx, eco, st, scraper, cfg.RetentionDays); err != nil {
+			slog.Error("failed to process ecosystem", "ecosystem", eco, "error", err)
+			lastErr = err
+			continue
+		}
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("some ecosystems failed to process: %w", lastErr)
+	}
+
+	slog.Info("completed vulnerability fetch")
+	return nil
+}
+
+func processEcosystem(ctx context.Context, eco interface{ SitemapURL() string; String() string }, st *store.Store, scraper *osv.Scraper, retentionDays int) error {
+	source := eco.String()
+	slog.Info("processing ecosystem", "ecosystem", source)
+
+	// Calculate retention cutoff time
+	retentionCutoff := time.Now().AddDate(0, 0, -retentionDays)
+
+	// Get last cursor
+	lastCursor, err := st.GetCursor(ctx, source)
+	if err != nil {
+		lastCursor = time.Time{}
+		slog.Info("no cursor found, starting from beginning", "ecosystem", source)
+	} else {
+		slog.Info("resuming from cursor", "ecosystem", source, "cursor", lastCursor)
+	}
+
+	// Fetch from sitemap with cursor filtering
+	sitemapURL := eco.SitemapURL()
+	sitemapFetcher := fetcher.NewSitemapFetcherWithCursor(sitemapURL, lastCursor)
+	entries, err := sitemapFetcher.Fetch(ctx)
+	if err != nil {
+		return fmt.Errorf("fetch sitemap from %s: %w", sitemapURL, err)
+	}
+
+	slog.Info("fetched entries from sitemap", "ecosystem", source, "count", len(entries))
+
+	// Filter by retention period
+	retentionFiltered := osv.FilterByCursor(entries, retentionCutoff)
+	slog.Info("filtered by retention", "ecosystem", source, "count", len(retentionFiltered), "cutoff", retentionCutoff)
+
+	if len(retentionFiltered) == 0 {
+		slog.Info("no new entries to process", "ecosystem", source)
+		return nil
+	}
+
+	// Process entries
+	if err := scraper.ProcessEntries(ctx, retentionFiltered); err != nil {
+		return fmt.Errorf("process entries: %w", err)
+	}
+
+	// Update cursor to the latest modified time
+	latestModified := retentionFiltered[len(retentionFiltered)-1].Modified
+	if err := st.SaveCursor(ctx, source, latestModified); err != nil {
+		return fmt.Errorf("save cursor: %w", err)
+	}
+
+	// Delete old data from database
+	if err := st.DeleteVulnerabilitiesOlderThan(ctx, retentionCutoff); err != nil {
+		return fmt.Errorf("delete old vulnerabilities: %w", err)
+	}
+	slog.Info("deleted old data", "ecosystem", source, "cutoff", retentionCutoff)
+
+	slog.Info("completed ecosystem", "ecosystem", source, "processed", len(retentionFiltered), "cursor", latestModified)
+	return nil
+}
+
+type storeAdapter struct {
+	s *store.Store
+}
+
+func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerability) error {
+	// Extract the highest severity score
+	severity := extractSeverity(vuln.Severity)
+
+	return a.s.SaveVulnerability(ctx, store.Vulnerability{
+		ID:        vuln.ID,
+		Modified:  vuln.Modified,
+		Published: vuln.Published,
+		Summary:   vuln.Summary,
+		Details:   vuln.Details,
+		Severity:  severity,
+	})
+}
+
+// extractSeverity extracts the severity score from vulnerability severity data.
+// If multiple severities exist, returns the first one. Returns empty string if none.
+func extractSeverity(severities []osv.Severity) string {
+	if len(severities) == 0 {
+		return ""
+	}
+	// Return the first severity score (usually CVSS)
+	return severities[0].Score
+}
+
+func (a *storeAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error {
+	return a.s.SaveAffected(ctx, store.Affected{
+		VulnID:    vulnID,
+		Ecosystem: ecosystem,
+		Package:   pkg,
+	})
+}
+
+func (a *storeAdapter) SaveTombstone(ctx context.Context, id string) error {
+	return a.s.SaveTombstone(ctx, id)
+}
+
+func generateReport(ctx context.Context, st *store.Store) error {
+	slog.Info("generating report", "format", *reportFormat, "output", *reportOutput, "ecosystem", *reportEcosystem, "diff", *reportDiff)
+
+	// Fetch vulnerabilities from database
+	var entries []store.VulnerabilityReportEntry
+	var err error
+
+	if *reportDiff {
+		// Differential mode: only fetch unreported vulnerabilities
+		entries, err = st.GetUnreportedVulnerabilities(ctx, *reportEcosystem)
+		if err != nil {
+			return fmt.Errorf("get unreported vulnerabilities: %w", err)
+		}
+	} else {
+		// Normal mode: fetch all vulnerabilities
+		entries, err = st.GetVulnerabilitiesWithMetrics(ctx, *reportEcosystem)
+		if err != nil {
+			return fmt.Errorf("get vulnerabilities: %w", err)
+		}
+	}
+
+	slog.Info("fetched vulnerabilities", "count", len(entries))
+
+	if len(entries) == 0 {
+		slog.Warn("no vulnerabilities found in database")
+		return nil
+	}
+
+	// Convert to report entries
+	reportEntries := make([]report.VulnerabilityEntry, len(entries))
+	for i, e := range entries {
+		reportEntries[i] = report.VulnerabilityEntry{
+			ID:          e.ID,
+			Ecosystem:   e.Ecosystem,
+			Package:     e.Package,
+			Downloads:   e.Downloads,
+			GitHubStars: e.GitHubStars,
+			Published:   e.Published,
+			Modified:    e.Modified,
+			Severity:    e.Severity,
+		}
+	}
+
+	// Generate report
+	writer := report.NewWriter()
+
+	switch *reportFormat {
+	case "markdown":
+		if err := writer.WriteMarkdown(ctx, *reportOutput, reportEntries); err != nil {
+			return fmt.Errorf("write markdown: %w", err)
+		}
+	case "csv":
+		if err := writer.WriteCSV(ctx, *reportOutput, reportEntries); err != nil {
+			return fmt.Errorf("write csv: %w", err)
+		}
+	case "jsonl":
+		if err := writer.WriteJSONL(ctx, *reportOutput, reportEntries); err != nil {
+			return fmt.Errorf("write jsonl: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown report format: %s (supported: markdown, csv, jsonl)", *reportFormat)
+	}
+
+	slog.Info("report generated successfully", "output", *reportOutput)
+
+	// If differential mode, save snapshot of what was reported
+	if *reportDiff {
+		if err := st.SaveReportSnapshot(ctx, entries); err != nil {
+			return fmt.Errorf("save report snapshot: %w", err)
+		}
+		slog.Info("saved report snapshot", "count", len(entries))
+	}
+
+	return nil
+}

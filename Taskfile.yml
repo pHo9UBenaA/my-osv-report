@@ -1,0 +1,103 @@
+version: '3'
+
+vars:
+  BINARY_NAME: osv-scraper
+  BUILD_DIR: .
+  CMD_DIR: ./cmd/osv-scraper
+
+tasks:
+  build:
+    desc: Build the osv-scraper binary
+    cmds:
+      - go build -o {{.BINARY_NAME}} {{.CMD_DIR}}
+
+  run:
+    desc: Run the osv-scraper (set environment variables before running)
+    cmds:
+      - ./{{.BINARY_NAME}}
+    deps:
+      - build
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
+  test-cover:
+    desc: Run all tests with coverage
+    cmds:
+      - go test -cover ./...
+
+  fmt:
+    desc: Check code formatting
+    cmds:
+      - gofmt -l .
+
+  fmt-fix:
+    desc: Fix code formatting
+    cmds:
+      - gofmt -w .
+
+  vet:
+    desc: Run static analysis
+    cmds:
+      - go vet ./...
+
+  check:
+    desc: Run all quality checks (test, format, vet)
+    cmds:
+      - go test ./...
+      - gofmt -l .
+      - go vet ./...
+
+  clean:
+    desc: Remove built binary
+    cmds:
+      - rm -f {{.BINARY_NAME}}
+
+  report-markdown:
+    desc: Generate Markdown report from database
+    cmds:
+      - ./{{.BINARY_NAME}} -report -format=markdown -output=./report.md
+    deps:
+      - build
+
+  report-csv:
+    desc: Generate CSV report from database
+    cmds:
+      - ./{{.BINARY_NAME}} -report -format=csv -output=./report.csv
+    deps:
+      - build
+
+  report-jsonl:
+    desc: Generate JSONL report from database
+    cmds:
+      - ./{{.BINARY_NAME}} -report -format=jsonl -output=./report.jsonl
+    deps:
+      - build
+
+  report-diff-markdown:
+    desc: Generate differential Markdown report (only new/changed vulnerabilities)
+    cmds:
+      - ./{{.BINARY_NAME}} -report -diff -format=markdown -output=./report.md
+    deps:
+      - build
+
+  report-diff-csv:
+    desc: Generate differential CSV report (only new/changed vulnerabilities)
+    cmds:
+      - ./{{.BINARY_NAME}} -report -diff -format=csv -output=./report.csv
+    deps:
+      - build
+
+  report-diff-jsonl:
+    desc: Generate differential JSONL report (only new/changed vulnerabilities)
+    cmds:
+      - ./{{.BINARY_NAME}} -report -diff -format=jsonl -output=./report.jsonl
+    deps:
+      - build
+
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
