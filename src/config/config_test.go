@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/src/config"
 	"github.com/pHo9UBenaA/osv-scraper/src/ecosystem"
@@ -45,6 +46,36 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+func TestLoadPerformanceSettings(t *testing.T) {
+	// Set environment variables for test
+	os.Setenv("OSV_RATE_LIMIT", "20.5")
+	os.Setenv("OSV_MAX_CONCURRENCY", "10")
+	os.Setenv("OSV_BATCH_SIZE", "200")
+	os.Setenv("OSV_HTTP_TIMEOUT", "60")
+	defer os.Clearenv()
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.RateLimit != 20.5 {
+		t.Errorf("RateLimit = %f, want 20.5", cfg.RateLimit)
+	}
+
+	if cfg.MaxConcurrency != 10 {
+		t.Errorf("MaxConcurrency = %d, want 10", cfg.MaxConcurrency)
+	}
+
+	if cfg.BatchSize != 200 {
+		t.Errorf("BatchSize = %d, want 200", cfg.BatchSize)
+	}
+
+	if cfg.HTTPTimeout != 60*time.Second {
+		t.Errorf("HTTPTimeout = %v, want 60s", cfg.HTTPTimeout)
+	}
+}
+
 func TestLoadDefaults(t *testing.T) {
 	os.Clearenv()
 
@@ -67,6 +98,23 @@ func TestLoadDefaults(t *testing.T) {
 
 	if cfg.RetentionDays != 7 {
 		t.Errorf("RetentionDays = %d, want 7 (default)", cfg.RetentionDays)
+	}
+
+	// Check performance defaults
+	if cfg.RateLimit != 10.0 {
+		t.Errorf("RateLimit = %f, want 10.0 (default)", cfg.RateLimit)
+	}
+
+	if cfg.MaxConcurrency != 5 {
+		t.Errorf("MaxConcurrency = %d, want 5 (default)", cfg.MaxConcurrency)
+	}
+
+	if cfg.BatchSize != 100 {
+		t.Errorf("BatchSize = %d, want 100 (default)", cfg.BatchSize)
+	}
+
+	if cfg.HTTPTimeout != 30*time.Second {
+		t.Errorf("HTTPTimeout = %v, want 30s (default)", cfg.HTTPTimeout)
 	}
 }
 

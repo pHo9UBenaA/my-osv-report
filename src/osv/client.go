@@ -78,9 +78,11 @@ type Client struct {
 // NewClient creates a new OSV API client without rate limiting.
 func NewClient(baseURL string) *Client {
 	return &Client{
-		baseURL:    baseURL,
-		httpClient: &http.Client{},
-		limiter:    nil,
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		limiter: nil,
 	}
 }
 
@@ -88,9 +90,22 @@ func NewClient(baseURL string) *Client {
 // ratePerSecond specifies the maximum number of requests per second.
 func NewClientWithRateLimit(baseURL string, ratePerSecond float64) *Client {
 	return &Client{
-		baseURL:    baseURL,
-		httpClient: &http.Client{},
-		limiter:    rate.NewLimiter(rate.Limit(ratePerSecond), 1),
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		limiter: rate.NewLimiter(rate.Limit(ratePerSecond), 1),
+	}
+}
+
+// NewClientWithOptions creates a new OSV API client with custom options.
+func NewClientWithOptions(baseURL string, ratePerSecond float64, timeout time.Duration) *Client {
+	return &Client{
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: timeout,
+		},
+		limiter: rate.NewLimiter(rate.Limit(ratePerSecond), 1),
 	}
 }
 

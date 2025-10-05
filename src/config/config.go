@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/pHo9UBenaA/osv-scraper/src/ecosystem"
@@ -10,10 +11,14 @@ import (
 
 // Config holds application configuration.
 type Config struct {
-	APIBaseURL    string
-	DBPath        string
-	Ecosystems    []ecosystem.Ecosystem
-	RetentionDays int
+	APIBaseURL     string
+	DBPath         string
+	Ecosystems     []ecosystem.Ecosystem
+	RetentionDays  int
+	RateLimit      float64       // requests per second
+	MaxConcurrency int           // max concurrent API requests
+	BatchSize      int           // batch size for processing entries
+	HTTPTimeout    time.Duration // HTTP client timeout
 }
 
 // Load loads configuration from environment variables with defaults.
@@ -35,11 +40,43 @@ func Load() (*Config, error) {
 		}
 	}
 
+	rateLimit := 10.0 // default: 10 requests per second
+	if rateLimitStr := os.Getenv("OSV_RATE_LIMIT"); rateLimitStr != "" {
+		if parsed, err := strconv.ParseFloat(rateLimitStr, 64); err == nil && parsed > 0 {
+			rateLimit = parsed
+		}
+	}
+
+	maxConcurrency := 5 // default: 5 concurrent requests
+	if maxConcStr := os.Getenv("OSV_MAX_CONCURRENCY"); maxConcStr != "" {
+		if parsed, err := strconv.Atoi(maxConcStr); err == nil && parsed > 0 {
+			maxConcurrency = parsed
+		}
+	}
+
+	batchSize := 100 // default: 100 entries per batch
+	if batchSizeStr := os.Getenv("OSV_BATCH_SIZE"); batchSizeStr != "" {
+		if parsed, err := strconv.Atoi(batchSizeStr); err == nil && parsed > 0 {
+			batchSize = parsed
+		}
+	}
+
+	httpTimeout := 30 * time.Second // default: 30 seconds
+	if timeoutStr := os.Getenv("OSV_HTTP_TIMEOUT"); timeoutStr != "" {
+		if parsed, err := strconv.Atoi(timeoutStr); err == nil && parsed > 0 {
+			httpTimeout = time.Duration(parsed) * time.Second
+		}
+	}
+
 	cfg := &Config{
-		APIBaseURL:    getEnv("OSV_API_BASE_URL", "https://api.osv.dev"),
-		DBPath:        getEnv("OSV_DB_PATH", "./osv.db"),
-		Ecosystems:    ecosystems,
-		RetentionDays: retentionDays,
+		APIBaseURL:     getEnv("OSV_API_BASE_URL", "https://api.osv.dev"),
+		DBPath:         getEnv("OSV_DB_PATH", "./osv.db"),
+		Ecosystems:     ecosystems,
+		RetentionDays:  retentionDays,
+		RateLimit:      rateLimit,
+		MaxConcurrency: maxConcurrency,
+		BatchSize:      batchSize,
+		HTTPTimeout:    httpTimeout,
 	}
 	return cfg, nil
 }

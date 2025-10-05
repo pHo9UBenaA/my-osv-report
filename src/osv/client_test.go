@@ -183,3 +183,30 @@ func TestGetVulnerability429Retry(t *testing.T) {
 		t.Errorf("callCount = %d, want 3 (should retry on 429)", callCount)
 	}
 }
+
+func TestNewClientWithOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate slow response
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	// Create client with custom timeout and rate limit
+	client := osv.NewClientWithOptions(server.URL, 10.0, 200*time.Millisecond)
+	ctx := context.Background()
+
+	// Should succeed with 200ms timeout (server responds in 100ms)
+	_, err := client.GetVulnerability(ctx, "test")
+	if err != nil {
+		t.Fatalf("GetVulnerability() error = %v", err)
+	}
+
+	// Test with very short timeout
+	clientShortTimeout := osv.NewClientWithOptions(server.URL, 10.0, 50*time.Millisecond)
+	_, err = clientShortTimeout.GetVulnerability(ctx, "test")
+	if err == nil {
+		t.Error("expected timeout error with 50ms timeout and 100ms response time")
+	}
+}

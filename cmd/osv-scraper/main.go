@@ -121,16 +121,20 @@ func fetchVulnerabilities(ctx context.Context, cfg *config.Config, st *store.Sto
 		return nil
 	}
 
-	slog.Info("starting vulnerability fetch", "ecosystems", cfg.Ecosystems)
+	slog.Info("starting vulnerability fetch",
+		"ecosystems", cfg.Ecosystems,
+		"rateLimit", cfg.RateLimit,
+		"maxConcurrency", cfg.MaxConcurrency,
+		"batchSize", cfg.BatchSize)
 
 	// Process each ecosystem
-	apiClient := osv.NewClient(cfg.APIBaseURL)
+	apiClient := osv.NewClientWithOptions(cfg.APIBaseURL, cfg.RateLimit, cfg.HTTPTimeout)
 	adapter := &storeAdapter{s: st}
 	scraper := osv.NewScraper(apiClient, adapter)
 
 	var lastErr error
 	for _, eco := range cfg.Ecosystems {
-		if err := processEcosystem(ctx, eco, st, scraper, cfg.RetentionDays); err != nil {
+		if err := processEcosystem(ctx, eco, st, scraper, cfg); err != nil {
 			slog.Error("failed to process ecosystem", "ecosystem", eco, "error", err)
 			lastErr = err
 			continue
@@ -145,12 +149,12 @@ func fetchVulnerabilities(ctx context.Context, cfg *config.Config, st *store.Sto
 	return nil
 }
 
-func processEcosystem(ctx context.Context, eco interface{ SitemapURL() string; String() string }, st *store.Store, scraper *osv.Scraper, retentionDays int) error {
+func processEcosystem(ctx context.Context, eco interface{ SitemapURL() string; String() string }, st *store.Store, scraper *osv.Scraper, cfg *config.Config) error {
 	source := eco.String()
 	slog.Info("processing ecosystem", "ecosystem", source)
 
 	// Calculate retention cutoff time
-	retentionCutoff := time.Now().AddDate(0, 0, -retentionDays)
+	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
 
 	// Get last cursor
 	lastCursor, err := st.GetCursor(ctx, source)
@@ -180,9 +184,19 @@ func processEcosystem(ctx context.Context, eco interface{ SitemapURL() string; S
 		return nil
 	}
 
-	// Process entries
-	if err := scraper.ProcessEntries(ctx, retentionFiltered); err != nil {
-		return fmt.Errorf("process entries: %w", err)
+	// Process entries in batches with parallel processing
+	for i := 0; i < len(retentionFiltered); i += cfg.BatchSize {
+		end := i + cfg.BatchSize
+		if end > len(retentionFiltered) {
+			end = len(retentionFiltered)
+		}
+
+		batch := retentionFiltered[i:end]
+		slog.Info("processing batch", "ecosystem", source, "batchStart", i, "batchEnd", end, "total", len(retentionFiltered))
+
+		if err := scraper.ProcessEntriesParallel(ctx, batch, cfg.MaxConcurrency); err != nil {
+			return fmt.Errorf("process batch: %w", err)
+		}
 	}
 
 	// Update cursor to the latest modified time

@@ -68,6 +68,10 @@ NOTE: Environment Variables
 | OSV_ECOSYSTEMS | Target ecosystems to collect (comma-separated) | (empty: no collection) |
 | OSV_DB_PATH | SQLite DB path | ./osv.db |
 | OSV_DATA_RETENTION_DAYS | Number of days to retain vulnerability data | 7 |
+| OSV_RATE_LIMIT | API request rate limit (requests per second) | 10.0 |
+| OSV_MAX_CONCURRENCY | Maximum concurrent API requests | 5 |
+| OSV_BATCH_SIZE | Batch size for processing entries | 100 |
+| OSV_HTTP_TIMEOUT | HTTP client timeout in seconds | 30 |
 
 </details>
 
