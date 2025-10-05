@@ -1,6 +1,7 @@
 package report_test
 
 import (
+	"encoding/csv"
 	"strings"
 	"testing"
 
@@ -155,5 +156,40 @@ func TestCSVFormatter_FormulaInjectionPrevention(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCSVFormatter_FormulaInjectionPrevention_WithLeadingWhitespace(t *testing.T) {
+	formatter := report.NewCSVFormatter()
+
+	entry := report.VulnerabilityEntry{
+		ID:        "\n=INJECT",
+		Ecosystem: " npm",
+		Package:   "\t=cmd|'/c calc'!A1",
+		Severity:  "\r@ALERT",
+	}
+
+	result := formatter.Format([]report.VulnerabilityEntry{entry})
+
+	r := csv.NewReader(strings.NewReader(result))
+	records, err := r.ReadAll()
+	if err != nil {
+		t.Fatalf("failed to parse CSV output: %v", err)
+	}
+
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records (header + entry), got %d", len(records))
+	}
+
+	data := records[1]
+	unsafePrefixes := []string{"=", "+", "-", "@"}
+
+	for idx, field := range data {
+		trimmed := strings.TrimLeft(field, " \t\r\n")
+		for _, prefix := range unsafePrefixes {
+			if strings.HasPrefix(trimmed, prefix) {
+				t.Fatalf("field %d should escape prefix %q but got %q", idx, prefix, field)
+			}
+		}
 	}
 }

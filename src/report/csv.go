@@ -3,6 +3,9 @@ package report
 import (
 	"bytes"
 	"encoding/csv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // CSVFormatter formats vulnerability entries as CSV.
@@ -60,13 +63,19 @@ func escapeCSVInjection(s string) string {
 	if s == "" {
 		return s
 	}
-	// Check if the string starts with a dangerous character
+
+	trimmed := strings.TrimLeftFunc(s, unicode.IsSpace)
+	if trimmed == "" {
+		return s
+	}
+
+	first, _ := utf8.DecodeRuneInString(trimmed)
 	dangerous := []rune{'=', '+', '-', '@'}
-	firstChar := rune(s[0])
 	for _, d := range dangerous {
-		if firstChar == d {
+		if first == d {
 			return "'" + s
 		}
 	}
+
 	return s
 }
