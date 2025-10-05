@@ -1,0 +1,94 @@
+## Database Schema
+
+### vulnerability
+Stores vulnerability information
+
+```sql
+CREATE TABLE vulnerability (
+    id TEXT PRIMARY KEY, -- Vulnerability ID (e.g., "GHSA-xxxx-xxxx-xxxx")
+    modified TEXT NOT NULL, -- Last updated time (RFC3339 format)
+    published TEXT, -- Publication time (RFC3339 format)
+    summary TEXT, -- Vulnerability summary
+    details TEXT, -- Detailed description
+    severity TEXT                -- Severity score (e.g., CVSS score)
+);
+```
+
+### affected
+Stores affected packages for each vulnerability
+
+```sql
+CREATE TABLE affected (
+    vuln_id TEXT NOT NULL, -- Foreign key to vulnerability.id
+    ecosystem TEXT NOT NULL, -- Ecosystem name (e.g., "npm", "PyPI", "Go")
+    package TEXT NOT NULL, -- Package name
+    PRIMARY KEY (vuln_id, ecosystem, package),
+    FOREIGN KEY (vuln_id) REFERENCES vulnerability(id)
+);
+```
+
+### package_metrics
+Stores package popularity metrics
+
+```sql
+CREATE TABLE package_metrics (
+    ecosystem TEXT NOT NULL, -- Ecosystem name
+    package TEXT NOT NULL, -- Package name
+    downloads INTEGER, -- Download count (ecosystem-specific)
+    github_stars INTEGER, -- GitHub stars (if applicable)
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ecosystem, package)
+);
+```
+
+### source_cursor
+Manages processing cursor (last processed time) for each ecosystem
+
+```sql
+CREATE TABLE source_cursor (
+    source TEXT PRIMARY KEY, -- Ecosystem name (e.g., "npm", "PyPI", "Go")
+    cursor TEXT NOT NULL         -- Last processed time (RFC3339 format)
+);
+```
+
+### tombstone
+Records deleted vulnerabilities (tombstones)
+
+```sql
+CREATE TABLE tombstone (
+    id TEXT PRIMARY KEY, -- Deleted vulnerability ID
+    deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### reported_snapshot
+Tracks vulnerabilities included in differential reports
+
+```sql
+CREATE TABLE reported_snapshot (
+    id TEXT NOT NULL, -- Vulnerability ID
+    ecosystem TEXT NOT NULL, -- Ecosystem name
+    package TEXT NOT NULL, -- Package name
+    published TEXT, -- Publication time
+    modified TEXT, -- Last modified time
+    severity TEXT, -- Severity score
+    PRIMARY KEY (id, ecosystem, package)
+);
+```
+
+## Indexes
+
+The following indexes are automatically created by PRIMARY KEY constraints:
+
+- `vulnerability(id)` - Primary key index
+- `affected(vuln_id, ecosystem, package)` - Composite primary key index
+- `package_metrics(ecosystem, package)` - Composite primary key index
+- `source_cursor(source)` - Primary key index
+- `tombstone(id)` - Primary key index
+- `reported_snapshot(id, ecosystem, package)` - Composite primary key index
+
+## Data Retention
+
+- Vulnerability data older than `OSV_DATA_RETENTION_DAYS` (default: 7 days) is automatically deleted during fetch operations
+- The `source_cursor` table maintains the synchronization state for incremental updates
+- The `reported_snapshot` table is cleared and rebuilt when generating differential reports

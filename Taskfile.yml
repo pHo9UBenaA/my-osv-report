@@ -12,9 +12,16 @@ tasks:
       - go build -o {{.BINARY_NAME}} {{.CMD_DIR}}
 
   run:
-    desc: Run the osv-scraper (set environment variables before running)
+    desc: Show help and available commands
     cmds:
       - ./{{.BINARY_NAME}}
+    deps:
+      - build
+
+  fetch:
+    desc: Fetch vulnerability data from OSV API (set OSV_ECOSYSTEMS environment variable)
+    cmds:
+      - ./{{.BINARY_NAME}} -fetch
     deps:
       - build
 
