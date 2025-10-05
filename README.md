@@ -64,7 +64,7 @@ NOTE: Environment Variables
 
 | Variable Name | Description | Default Value |
 | --- | --- | --- |
-| OSV_API_BASE_URL | OSV API base URL | https://api.osv.dev |
+| OSV_API_BASE_URL | OSV API base URL | `https://api.osv.dev` |
 | OSV_ECOSYSTEMS | Target ecosystems to collect (comma-separated) | (empty: no collection) |
 | OSV_DB_PATH | SQLite DB path | ./osv.db |
 | OSV_DATA_RETENTION_DAYS | Number of days to retain vulnerability data | 7 |
@@ -90,4 +90,4 @@ Data for each ecosystem is fetched independently, and cursors are managed separa
 
 ## License
 
-MIT
+[MIT](./LICENSE)
