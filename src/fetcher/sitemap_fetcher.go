@@ -31,26 +31,40 @@ type SitemapFetcher struct {
 	cursor     time.Time
 }
 
+const defaultSitemapTimeout = 30 * time.Second
+
+func newSitemapFetcher(url string, client *http.Client, cursor time.Time) *SitemapFetcher {
+	if client == nil {
+		client = &http.Client{Timeout: defaultSitemapTimeout}
+	} else if client.Timeout == 0 {
+		client.Timeout = defaultSitemapTimeout
+	}
+
+	return &SitemapFetcher{
+		url:        url,
+		httpClient: client,
+		cursor:     cursor,
+	}
+}
+
 // NewSitemapFetcher creates a new sitemap fetcher without cursor filtering.
 func NewSitemapFetcher(url string) *SitemapFetcher {
-	return &SitemapFetcher{
-		url: url,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		cursor: time.Time{}, // zero time = no filtering
-	}
+	return newSitemapFetcher(url, nil, time.Time{})
 }
 
 // NewSitemapFetcherWithCursor creates a new sitemap fetcher with cursor filtering.
 func NewSitemapFetcherWithCursor(url string, cursor time.Time) *SitemapFetcher {
-	return &SitemapFetcher{
-		url: url,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		cursor: cursor,
-	}
+	return newSitemapFetcher(url, nil, cursor)
+}
+
+// NewSitemapFetcherWithClient creates a new sitemap fetcher using the provided HTTP client.
+func NewSitemapFetcherWithClient(url string, client *http.Client) *SitemapFetcher {
+	return newSitemapFetcher(url, client, time.Time{})
+}
+
+// NewSitemapFetcherWithClientAndCursor creates a new sitemap fetcher with cursor filtering and custom client.
+func NewSitemapFetcherWithClientAndCursor(url string, client *http.Client, cursor time.Time) *SitemapFetcher {
+	return newSitemapFetcher(url, client, cursor)
 }
 
 // Fetch downloads and parses the sitemap XML to extract vulnerability IDs and lastmod.
@@ -115,4 +129,13 @@ func (f *SitemapFetcher) parseSitemap(xmlData []byte) ([]osv.Entry, error) {
 	}
 
 	return entries, nil
+}
+
+// HTTPClientTimeout returns the configured HTTP client timeout.
+func (f *SitemapFetcher) HTTPClientTimeout() time.Duration {
+	if f.httpClient == nil {
+		return 0
+	}
+
+	return f.httpClient.Timeout
 }

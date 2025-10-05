@@ -126,10 +126,17 @@ func TestSitemapFetcher_FetchWithCursorFilter(t *testing.T) {
 }
 
 func TestSitemapFetcherHasTimeout(t *testing.T) {
-	// Create a server that delays response to test client timeout
+	f := fetcher.NewSitemapFetcher("https://example.com")
+
+	if f.HTTPClientTimeout() != 30*time.Second {
+		t.Fatalf("default timeout = %v, want 30s", f.HTTPClientTimeout())
+	}
+}
+
+func TestSitemapFetcherWithCustomClientTimeout(t *testing.T) {
+	// Server never finishes to force reliance on client timeout
 	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Wait for test to finish or timeout
 		<-done
 	}))
 	defer func() {
@@ -138,32 +145,26 @@ func TestSitemapFetcherHasTimeout(t *testing.T) {
 	}()
 
 	ctx := context.Background()
-	f := fetcher.NewSitemapFetcher(server.URL)
+	client := &http.Client{Timeout: 50 * time.Millisecond}
+	f := fetcher.NewSitemapFetcherWithClient(server.URL, client)
 
-	// Don't use context timeout - test that the client itself has timeout
 	start := time.Now()
 	_, err := f.Fetch(ctx)
 	elapsed := time.Since(start)
 
 	if err == nil {
-		t.Error("expected timeout error, got nil")
+		t.Fatal("expected timeout error when using custom HTTP client")
 	}
 
-	// Timeout should occur within reasonable time
-	// Client timeout is 30s, so it should finish around that time
-	if elapsed > 35*time.Second {
-		t.Errorf("timeout took too long: %v", elapsed)
-	}
-	if elapsed < 25*time.Second {
-		t.Errorf("timeout too fast, expected ~30s, got: %v", elapsed)
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("custom client timeout not respected, elapsed=%v", elapsed)
 	}
 }
 
 func TestSitemapFetcherWithCursorHasTimeout(t *testing.T) {
-	// Create a server that delays response to test client timeout
+	// Create a server that never responds to ensure timeout is enforced
 	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Wait for test to finish or timeout
 		<-done
 	}))
 	defer func() {
@@ -173,22 +174,18 @@ func TestSitemapFetcherWithCursorHasTimeout(t *testing.T) {
 
 	ctx := context.Background()
 	cursor := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
-	f := fetcher.NewSitemapFetcherWithCursor(server.URL, cursor)
+	client := &http.Client{Timeout: 50 * time.Millisecond}
+	f := fetcher.NewSitemapFetcherWithClientAndCursor(server.URL, client, cursor)
 
-	// Don't use context timeout - test that the client itself has timeout
 	start := time.Now()
 	_, err := f.Fetch(ctx)
 	elapsed := time.Since(start)
 
 	if err == nil {
-		t.Error("expected timeout error, got nil")
+		t.Fatal("expected timeout error when using custom HTTP client")
 	}
 
-	// Timeout should occur within reasonable time
-	if elapsed > 35*time.Second {
-		t.Errorf("timeout took too long: %v", elapsed)
-	}
-	if elapsed < 25*time.Second {
-		t.Errorf("timeout too fast, expected ~30s, got: %v", elapsed)
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("custom client timeout with cursor not respected, elapsed=%v", elapsed)
 	}
 }

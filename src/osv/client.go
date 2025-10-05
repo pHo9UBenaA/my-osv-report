@@ -72,41 +72,88 @@ type Vulnerability struct {
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
-	limiter    *rate.Limiter
+	limiter    limiter
+	timeAfter  func(time.Duration) <-chan time.Time
+}
+
+type limiter interface {
+	Wait(context.Context) error
+}
+
+type limiterFunc func(context.Context) error
+
+func (f limiterFunc) Wait(ctx context.Context) error {
+	if f == nil {
+		return nil
+	}
+	return f(ctx)
+}
+
+// ClientOption configures optional client behaviour.
+type ClientOption func(*Client)
+
+// WithLimiterWaitFunc sets a custom limiter wait function.
+func WithLimiterWaitFunc(wait func(context.Context) error) ClientOption {
+	return func(c *Client) {
+		if wait == nil {
+			c.limiter = nil
+			return
+		}
+		c.limiter = limiterFunc(wait)
+	}
+}
+
+// WithBackoffAfterFunc overrides the backoff timer factory used for retries.
+func WithBackoffAfterFunc(after func(time.Duration) <-chan time.Time) ClientOption {
+	return func(c *Client) {
+		if after == nil {
+			c.timeAfter = time.After
+			return
+		}
+		c.timeAfter = after
+	}
+}
+
+func newClient(baseURL string, httpClient *http.Client, lim limiter, opts ...ClientOption) *Client {
+	c := &Client{
+		baseURL:    baseURL,
+		httpClient: httpClient,
+		limiter:    lim,
+		timeAfter:  time.After,
+	}
+
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
+		}
+	}
+
+	if c.httpClient == nil {
+		c.httpClient = &http.Client{Timeout: 30 * time.Second}
+	}
+	if c.timeAfter == nil {
+		c.timeAfter = time.After
+	}
+
+	return c
 }
 
 // NewClient creates a new OSV API client without rate limiting.
-func NewClient(baseURL string) *Client {
-	return &Client{
-		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		limiter: nil,
-	}
+func NewClient(baseURL string, opts ...ClientOption) *Client {
+	return newClient(baseURL, &http.Client{Timeout: 30 * time.Second}, nil, opts...)
 }
 
 // NewClientWithRateLimit creates a new OSV API client with rate limiting.
 // ratePerSecond specifies the maximum number of requests per second.
-func NewClientWithRateLimit(baseURL string, ratePerSecond float64) *Client {
-	return &Client{
-		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		limiter: rate.NewLimiter(rate.Limit(ratePerSecond), 1),
-	}
+func NewClientWithRateLimit(baseURL string, ratePerSecond float64, opts ...ClientOption) *Client {
+	lim := rate.NewLimiter(rate.Limit(ratePerSecond), 1)
+	return newClient(baseURL, &http.Client{Timeout: 30 * time.Second}, lim, opts...)
 }
 
 // NewClientWithOptions creates a new OSV API client with custom options.
-func NewClientWithOptions(baseURL string, ratePerSecond float64, timeout time.Duration) *Client {
-	return &Client{
-		baseURL: baseURL,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		limiter: rate.NewLimiter(rate.Limit(ratePerSecond), 1),
-	}
+func NewClientWithOptions(baseURL string, ratePerSecond float64, timeout time.Duration, opts ...ClientOption) *Client {
+	lim := rate.NewLimiter(rate.Limit(ratePerSecond), 1)
+	return newClient(baseURL, &http.Client{Timeout: timeout}, lim, opts...)
 }
 
 // GetVulnerability fetches a vulnerability by ID from the OSV API with automatic retry on 429.
@@ -130,7 +177,7 @@ func (c *Client) GetVulnerability(ctx context.Context, id string) (*Vulnerabilit
 		if attempt < maxRetries-1 {
 			backoff := time.Duration(attempt+1) * time.Second
 			select {
-			case <-time.After(backoff):
+			case <-c.timeAfter(backoff):
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			}

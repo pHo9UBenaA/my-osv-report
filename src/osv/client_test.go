@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -132,24 +133,26 @@ func TestClientWithRateLimit(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client with 2 requests per second rate limit
-	client := osv.NewClientWithRateLimit(server.URL, 2.0)
+	waits := 0
+	client := osv.NewClientWithRateLimit(
+		server.URL,
+		2.0,
+		osv.WithLimiterWaitFunc(func(ctx context.Context) error {
+			waits++
+			return nil
+		}),
+	)
 	ctx := context.Background()
 
-	// Make 5 requests - should take at least 2 seconds with 2 req/s limit
-	start := time.Now()
 	for i := 0; i < 5; i++ {
 		_, err := client.GetVulnerability(ctx, "test")
 		if err != nil {
 			t.Fatalf("GetVulnerability() error = %v", err)
 		}
 	}
-	elapsed := time.Since(start)
 
-	// With 2 req/s: 5 requests should take at least 2 seconds
-	// (0s, 0.5s, 1s, 1.5s, 2s)
-	if elapsed < 2*time.Second {
-		t.Errorf("rate limit not working: elapsed %v, expected >= 2s", elapsed)
+	if waits != 5 {
+		t.Fatalf("limiter wait called %d times, want 5", waits)
 	}
 }
 
@@ -169,7 +172,13 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := osv.NewClient(server.URL)
+	var backoffs []time.Duration
+	client := osv.NewClient(server.URL, osv.WithBackoffAfterFunc(func(d time.Duration) <-chan time.Time {
+		backoffs = append(backoffs, d)
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}))
 	ctx := context.Background()
 
 	vuln, err := client.GetVulnerability(ctx, "test")
@@ -181,6 +190,11 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	}
 	if callCount != 3 {
 		t.Errorf("callCount = %d, want 3 (should retry on 429)", callCount)
+	}
+
+	expected := []time.Duration{1 * time.Second, 2 * time.Second}
+	if !reflect.DeepEqual(expected, backoffs) {
+		t.Fatalf("unexpected backoff durations, want %v got %v", expected, backoffs)
 	}
 }
 
