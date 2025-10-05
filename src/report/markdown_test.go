@@ -55,3 +55,55 @@ func TestMarkdownFormatter_Format(t *testing.T) {
 		t.Errorf("missing second entry with NA values in result")
 	}
 }
+
+func TestMarkdownFormatter_Format_EscapesSpecialCharacters(t *testing.T) {
+	formatter := report.NewMarkdownFormatter()
+
+	entries := []report.VulnerabilityEntry{
+		{
+			ID:          "GHSA-test-0001",
+			Ecosystem:   "npm",
+			Package:     "pkg-with-|pipe|chars",
+			Downloads:   100,
+			GitHubStars: 50,
+			Published:   "2025-10-01",
+			Modified:    "2025-10-02",
+			Severity:    "HIGH|CRITICAL",
+		},
+		{
+			ID:          "<script>alert('xss')</script>",
+			Ecosystem:   "PyPI",
+			Package:     "[dangerous](http://evil.com)",
+			Downloads:   200,
+			GitHubStars: 10,
+			Published:   "2025-10-03",
+			Modified:    "2025-10-04",
+			Severity:    "*emphasis*",
+		},
+	}
+
+	result := formatter.Format(entries)
+
+	// Pipe characters should be escaped to prevent breaking table structure
+	if strings.Contains(result, "pkg-with-|pipe|chars") {
+		t.Errorf("pipe characters in package name should be escaped, got: %s", result)
+	}
+	if !strings.Contains(result, "pkg-with-\\|pipe\\|chars") {
+		t.Errorf("expected escaped pipe characters in package name")
+	}
+
+	// HTML tags should be escaped
+	if strings.Contains(result, "<script>") {
+		t.Errorf("HTML tags should be escaped, got: %s", result)
+	}
+
+	// Markdown links should be escaped
+	if strings.Contains(result, "[dangerous](http://evil.com)") {
+		t.Errorf("markdown links should be escaped, got: %s", result)
+	}
+
+	// Markdown emphasis should be escaped
+	if strings.Contains(result, "*emphasis*") && !strings.Contains(result, "\\*emphasis\\*") {
+		t.Errorf("markdown emphasis characters should be escaped, got: %s", result)
+	}
+}

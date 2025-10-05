@@ -17,6 +17,20 @@ type VulnerabilityEntry struct {
 	Severity    string
 }
 
+// markdownReplacer is used to escape special Markdown characters.
+var markdownReplacer = strings.NewReplacer(
+	"|", "\\|",   // Pipe breaks table structure
+	"*", "\\*",   // Asterisk for emphasis/bold
+	"_", "\\_",   // Underscore for emphasis/bold
+	"[", "\\[",   // Opening bracket for links
+	"]", "\\]",   // Closing bracket for links
+	"<", "\\<",   // Opening angle bracket for HTML tags
+	">", "\\>",   // Closing angle bracket for HTML tags
+	"`", "\\`",   // Backtick for code
+	"#", "\\#",   // Hash for headers
+	"\\", "\\\\", // Backslash itself
+)
+
 // MarkdownFormatter formats vulnerability entries as Markdown tables.
 type MarkdownFormatter struct{}
 
@@ -35,6 +49,9 @@ func (f *MarkdownFormatter) Format(entries []VulnerabilityEntry) string {
 
 	// Write entries
 	for _, e := range entries {
+		ecosystem := escapeMarkdown(e.Ecosystem)
+		pkg := escapeMarkdown(e.Package)
+		id := escapeMarkdown(e.ID)
 		downloads := formatInt(e.Downloads)
 		stars := formatInt(e.GitHubStars)
 		published := formatString(e.Published)
@@ -42,7 +59,7 @@ func (f *MarkdownFormatter) Format(entries []VulnerabilityEntry) string {
 		severity := formatString(e.Severity)
 
 		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s | %s |\n",
-			e.Ecosystem, e.Package, e.ID, downloads, stars, published, modified, severity))
+			ecosystem, pkg, id, downloads, stars, published, modified, severity))
 	}
 
 	return sb.String()
@@ -59,5 +76,11 @@ func formatString(val string) string {
 	if val == "" {
 		return "NA"
 	}
-	return val
+	return escapeMarkdown(val)
+}
+
+// escapeMarkdown escapes special characters that could break Markdown table formatting
+// or be interpreted as Markdown syntax.
+func escapeMarkdown(s string) string {
+	return markdownReplacer.Replace(s)
 }
