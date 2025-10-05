@@ -179,11 +179,18 @@ func (s *Store) SaveCursor(ctx context.Context, source string, cursor time.Time)
 }
 
 // GetCursor retrieves the cursor for a given source.
+// Returns sql.ErrNoRows directly if no cursor exists for the source,
+// allowing callers to distinguish "no cursor yet" from database errors.
 func (s *Store) GetCursor(ctx context.Context, source string) (time.Time, error) {
 	query := `SELECT cursor FROM source_cursor WHERE source = ?`
 	var cursorStr string
 	err := s.db.QueryRowContext(ctx, query, source).Scan(&cursorStr)
 	if err != nil {
+		// Return sql.ErrNoRows directly to allow caller to distinguish
+		// "no cursor found" from actual database errors
+		if err == sql.ErrNoRows {
+			return time.Time{}, sql.ErrNoRows
+		}
 		return time.Time{}, fmt.Errorf("get cursor: %w", err)
 	}
 

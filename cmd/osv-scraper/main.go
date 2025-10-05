@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -159,8 +160,13 @@ func processEcosystem(ctx context.Context, eco interface{ SitemapURL() string; S
 	// Get last cursor
 	lastCursor, err := st.GetCursor(ctx, source)
 	if err != nil {
-		lastCursor = time.Time{}
-		slog.Info("no cursor found, starting from beginning", "ecosystem", source)
+		// Distinguish between "no cursor found" (expected) and database errors (critical)
+		if err == sql.ErrNoRows {
+			lastCursor = time.Time{}
+			slog.Info("no cursor found, starting from beginning", "ecosystem", source)
+		} else {
+			return fmt.Errorf("failed to get cursor for %s: %w", source, err)
+		}
 	} else {
 		slog.Info("resuming from cursor", "ecosystem", source, "cursor", lastCursor)
 	}

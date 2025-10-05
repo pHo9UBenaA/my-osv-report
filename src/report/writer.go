@@ -25,7 +25,7 @@ func NewWriter() *Writer {
 // WriteMarkdown writes vulnerability entries to a Markdown file.
 func (w *Writer) WriteMarkdown(ctx context.Context, path string, entries []VulnerabilityEntry) error {
 	content := w.mdFormatter.Format(entries)
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write markdown: %w", err)
 	}
 	return nil
@@ -34,7 +34,7 @@ func (w *Writer) WriteMarkdown(ctx context.Context, path string, entries []Vulne
 // WriteCSV writes vulnerability entries to a CSV file.
 func (w *Writer) WriteCSV(ctx context.Context, path string, entries []VulnerabilityEntry) error {
 	content := w.csvFormatter.Format(entries)
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write csv: %w", err)
 	}
 	return nil
@@ -43,7 +43,7 @@ func (w *Writer) WriteCSV(ctx context.Context, path string, entries []Vulnerabil
 // WriteJSONL writes vulnerability entries to a JSONL file.
 func (w *Writer) WriteJSONL(ctx context.Context, path string, entries []VulnerabilityEntry) error {
 	content := w.jsonlFormatter.Format(entries)
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write jsonl: %w", err)
 	}
 	return nil

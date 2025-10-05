@@ -103,3 +103,36 @@ func TestWriter_WriteJSONL(t *testing.T) {
 		t.Errorf("output file was not created at %s", outputPath)
 	}
 }
+
+func TestWriter_FilePermissions0600(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "report-perm.csv")
+
+	writer := report.NewWriter()
+	ctx := context.Background()
+
+	entries := []report.VulnerabilityEntry{
+		{
+			ID:          "GHSA-test-1234",
+			Ecosystem:   "npm",
+			Package:     "test-pkg",
+			Downloads:   1000,
+			GitHubStars: 100,
+			Severity:    "HIGH",
+		},
+	}
+
+	if err := writer.WriteCSV(ctx, outputPath, entries); err != nil {
+		t.Fatalf("WriteCSV() error = %v", err)
+	}
+
+	info, err := os.Stat(outputPath)
+	if err != nil {
+		t.Fatalf("failed to stat output file: %v", err)
+	}
+
+	mode := info.Mode().Perm()
+	if mode != 0o600 {
+		t.Errorf("file permissions = %04o, want 0600", mode)
+	}
+}

@@ -59,6 +59,49 @@ func TestCursorOperations(t *testing.T) {
 	}
 }
 
+func TestGetCursor_ErrorHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	ctx := context.Background()
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	defer s.Close()
+
+	t.Run("NonExistentSource_ReturnsNoRowsError", func(t *testing.T) {
+		_, err := s.GetCursor(ctx, "non-existent-source")
+		if err == nil {
+			t.Fatal("GetCursor() with non-existent source should return error")
+		}
+
+		// Should be sql.ErrNoRows (directly, not wrapped in fmt.Errorf)
+		// This allows callers to distinguish "no cursor yet" from "DB error"
+		if err != sql.ErrNoRows {
+			t.Errorf("GetCursor() should return sql.ErrNoRows directly for non-existent source, got: %v (type: %T)", err, err)
+		}
+	})
+
+	t.Run("DBError_DistinguishedFromNoRows", func(t *testing.T) {
+		// Close the database to simulate a real error
+		originalStore := s
+		s.Close()
+
+		// Try to get cursor from closed DB - should NOT be sql.ErrNoRows
+		_, err := originalStore.GetCursor(ctx, "any-source")
+		if err == nil {
+			t.Fatal("GetCursor() on closed DB should return error")
+		}
+
+		// This error should NOT be sql.ErrNoRows
+		// It should be a real database error wrapped in fmt.Errorf
+		if err == sql.ErrNoRows {
+			t.Errorf("GetCursor() DB error should NOT be sql.ErrNoRows, got: %v", err)
+		}
+	})
+}
+
 func TestSaveVulnerability(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
