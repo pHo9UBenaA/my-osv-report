@@ -32,6 +32,10 @@ task fetch
 
 ### 3. Generate Reports
 
+Output file name:
+`report_<utc-timestamp>.<ext>`
+
+
 ```bash
 # Generate a markdown report
 task report-markdown

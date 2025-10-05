@@ -8,6 +8,8 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/src/config"
@@ -21,11 +23,15 @@ var (
 	fetchMode       = flag.Bool("fetch", false, "Fetch vulnerability data from OSV API")
 	reportMode      = flag.Bool("report", false, "Generate report instead of scraping")
 	reportFormat    = flag.String("format", "markdown", "Report format: markdown, csv, jsonl")
-	reportOutput    = flag.String("output", "./report.md", "Report output file path")
+	reportOutput    = flag.String("output", "./report.md", "Report output base path (timestamp suffix appended before extension)")
 	reportEcosystem = flag.String("ecosystem", "", "Filter report by ecosystem (empty = all)")
 	reportDiff      = flag.Bool("diff", false, "Generate differential report (only new/changed vulnerabilities)")
 	helpMode        = flag.Bool("help", false, "Show help message")
 )
+
+var reportNow = func() time.Time {
+	return time.Now().UTC()
+}
 
 func main() {
 	flag.Parse()
@@ -97,7 +103,7 @@ FETCH OPTIONS:
 
 REPORT OPTIONS:
   -format <format>    Output format: markdown, csv, jsonl (default: markdown)
-  -output <file>      Output file path (default: ./report.md)
+  -output <file>      Output base file path (timestamp suffix appended; default: ./report.md)
   -ecosystem <name>   Filter by ecosystem (optional)
   -diff               Generate differential report (new/changed vulnerabilities only)
 
@@ -105,7 +111,7 @@ EXAMPLES:
   # Fetch vulnerability data
   OSV_ECOSYSTEMS=npm,pypi osv-scraper -fetch
 
-  # Generate markdown report
+  # Generate markdown report (creates report_<timestamp>.md)
   osv-scraper -report -format=markdown -output=report.md
 
   # Generate differential CSV report for npm only
@@ -150,7 +156,10 @@ func fetchVulnerabilities(ctx context.Context, cfg *config.Config, st *store.Sto
 	return nil
 }
 
-func processEcosystem(ctx context.Context, eco interface{ SitemapURL() string; String() string }, st *store.Store, scraper *osv.Scraper, cfg *config.Config) error {
+func processEcosystem(ctx context.Context, eco interface {
+	SitemapURL() string
+	String() string
+}, st *store.Store, scraper *osv.Scraper, cfg *config.Config) error {
 	source := eco.String()
 	slog.Info("processing ecosystem", "ecosystem", source)
 
@@ -249,6 +258,24 @@ func extractSeverity(severities []osv.Severity) string {
 	return severities[0].Score
 }
 
+func resolveReportOutputPath(base string, now time.Time) string {
+	if base == "" {
+		return base
+	}
+
+	dir := filepath.Dir(base)
+	filename := filepath.Base(base)
+	ext := filepath.Ext(filename)
+	name := strings.TrimSuffix(filename, ext)
+	timestamp := now.UTC().Format("20060102T150405Z")
+
+	newName := fmt.Sprintf("%s_%s%s", name, timestamp, ext)
+	if dir == "." {
+		return filepath.Join(dir, newName)
+	}
+	return filepath.Join(dir, newName)
+}
+
 func (a *storeAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error {
 	return a.s.SaveAffected(ctx, store.Affected{
 		VulnID:    vulnID,
@@ -262,7 +289,8 @@ func (a *storeAdapter) SaveTombstone(ctx context.Context, id string) error {
 }
 
 func generateReport(ctx context.Context, st *store.Store) error {
-	slog.Info("generating report", "format", *reportFormat, "output", *reportOutput, "ecosystem", *reportEcosystem, "diff", *reportDiff)
+	outputPath := resolveReportOutputPath(*reportOutput, reportNow())
+	slog.Info("generating report", "format", *reportFormat, "output", outputPath, "ecosystem", *reportEcosystem, "diff", *reportDiff)
 
 	// Fetch vulnerabilities from database
 	var entries []store.VulnerabilityReportEntry
@@ -309,22 +337,22 @@ func generateReport(ctx context.Context, st *store.Store) error {
 
 	switch *reportFormat {
 	case "markdown":
-		if err := writer.WriteMarkdown(ctx, *reportOutput, reportEntries); err != nil {
+		if err := writer.WriteMarkdown(ctx, outputPath, reportEntries); err != nil {
 			return fmt.Errorf("write markdown: %w", err)
 		}
 	case "csv":
-		if err := writer.WriteCSV(ctx, *reportOutput, reportEntries); err != nil {
+		if err := writer.WriteCSV(ctx, outputPath, reportEntries); err != nil {
 			return fmt.Errorf("write csv: %w", err)
 		}
 	case "jsonl":
-		if err := writer.WriteJSONL(ctx, *reportOutput, reportEntries); err != nil {
+		if err := writer.WriteJSONL(ctx, outputPath, reportEntries); err != nil {
 			return fmt.Errorf("write jsonl: %w", err)
 		}
 	default:
 		return fmt.Errorf("unknown report format: %s (supported: markdown, csv, jsonl)", *reportFormat)
 	}
 
-	slog.Info("report generated successfully", "output", *reportOutput)
+	slog.Info("report generated successfully", "output", outputPath)
 
 	// If differential mode, save snapshot of what was reported
 	if *reportDiff {
