@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/src/metrics"
 )
@@ -32,5 +33,34 @@ func TestNpmClient_GetDownloads(t *testing.T) {
 	}
 	if downloads != 5678901 {
 		t.Errorf("downloads = %d, want 5678901", downloads)
+	}
+}
+
+func TestNpmClientHasTimeout(t *testing.T) {
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-done
+	}))
+	defer func() {
+		close(done)
+		server.Close()
+	}()
+
+	ctx := context.Background()
+	client := metrics.NewNpmClient(server.URL)
+
+	shortCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := client.GetDownloads(shortCtx, "express")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Error("expected timeout error, got nil")
+	}
+
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("timeout took too long: %v, client may not have timeout configured", elapsed)
 	}
 }

@@ -124,3 +124,71 @@ func TestSitemapFetcher_FetchWithCursorFilter(t *testing.T) {
 		t.Errorf("entries[1].ID = %q, want %q", entries[1].ID, "GHSA-new2")
 	}
 }
+
+func TestSitemapFetcherHasTimeout(t *testing.T) {
+	// Create a server that delays response to test client timeout
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Wait for test to finish or timeout
+		<-done
+	}))
+	defer func() {
+		close(done)
+		server.Close()
+	}()
+
+	ctx := context.Background()
+	f := fetcher.NewSitemapFetcher(server.URL)
+
+	// Don't use context timeout - test that the client itself has timeout
+	start := time.Now()
+	_, err := f.Fetch(ctx)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Error("expected timeout error, got nil")
+	}
+
+	// Timeout should occur within reasonable time
+	// Client timeout is 30s, so it should finish around that time
+	if elapsed > 35*time.Second {
+		t.Errorf("timeout took too long: %v", elapsed)
+	}
+	if elapsed < 25*time.Second {
+		t.Errorf("timeout too fast, expected ~30s, got: %v", elapsed)
+	}
+}
+
+func TestSitemapFetcherWithCursorHasTimeout(t *testing.T) {
+	// Create a server that delays response to test client timeout
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Wait for test to finish or timeout
+		<-done
+	}))
+	defer func() {
+		close(done)
+		server.Close()
+	}()
+
+	ctx := context.Background()
+	cursor := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
+	f := fetcher.NewSitemapFetcherWithCursor(server.URL, cursor)
+
+	// Don't use context timeout - test that the client itself has timeout
+	start := time.Now()
+	_, err := f.Fetch(ctx)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Error("expected timeout error, got nil")
+	}
+
+	// Timeout should occur within reasonable time
+	if elapsed > 35*time.Second {
+		t.Errorf("timeout took too long: %v", elapsed)
+	}
+	if elapsed < 25*time.Second {
+		t.Errorf("timeout too fast, expected ~30s, got: %v", elapsed)
+	}
+}

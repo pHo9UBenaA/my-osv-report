@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 var ErrInvalidGitHubURL = errors.New("invalid github url")
@@ -42,9 +43,11 @@ func ParseGitHubURL(rawURL string) (owner, repo string, err error) {
 // NewGitHubClient creates a new GitHub API client.
 func NewGitHubClient(baseURL, token string) *GitHubClient {
 	return &GitHubClient{
-		baseURL:    baseURL,
-		token:      token,
-		httpClient: &http.Client{},
+		baseURL: baseURL,
+		token:   token,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 

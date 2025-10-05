@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // NpmClient is an HTTP client for the npm registry API.
@@ -16,8 +17,10 @@ type NpmClient struct {
 // NewNpmClient creates a new npm API client.
 func NewNpmClient(baseURL string) *NpmClient {
 	return &NpmClient{
-		baseURL:    baseURL,
-		httpClient: &http.Client{},
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 

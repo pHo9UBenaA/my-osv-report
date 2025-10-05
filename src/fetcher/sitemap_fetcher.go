@@ -34,18 +34,22 @@ type SitemapFetcher struct {
 // NewSitemapFetcher creates a new sitemap fetcher without cursor filtering.
 func NewSitemapFetcher(url string) *SitemapFetcher {
 	return &SitemapFetcher{
-		url:        url,
-		httpClient: &http.Client{},
-		cursor:     time.Time{}, // zero time = no filtering
+		url: url,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		cursor: time.Time{}, // zero time = no filtering
 	}
 }
 
 // NewSitemapFetcherWithCursor creates a new sitemap fetcher with cursor filtering.
 func NewSitemapFetcherWithCursor(url string, cursor time.Time) *SitemapFetcher {
 	return &SitemapFetcher{
-		url:        url,
-		httpClient: &http.Client{},
-		cursor:     cursor,
+		url: url,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		cursor: cursor,
 	}
 }
 

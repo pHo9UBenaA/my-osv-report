@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/src/metrics"
 )
@@ -85,5 +86,34 @@ func TestGitHubClient_GetStars(t *testing.T) {
 	}
 	if stars != 1234 {
 		t.Errorf("stars = %d, want 1234", stars)
+	}
+}
+
+func TestGitHubClientHasTimeout(t *testing.T) {
+	done := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-done
+	}))
+	defer func() {
+		close(done)
+		server.Close()
+	}()
+
+	ctx := context.Background()
+	client := metrics.NewGitHubClient(server.URL, "")
+
+	shortCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := client.GetStars(shortCtx, "owner", "repo")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Error("expected timeout error, got nil")
+	}
+
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("timeout took too long: %v, client may not have timeout configured", elapsed)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/src/osv"
 )
@@ -17,8 +18,10 @@ type CSVFetcher struct {
 // NewCSVFetcher creates a new CSV fetcher.
 func NewCSVFetcher(url string) *CSVFetcher {
 	return &CSVFetcher{
-		url:        url,
-		httpClient: &http.Client{},
+		url: url,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
