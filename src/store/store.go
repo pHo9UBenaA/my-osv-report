@@ -139,6 +139,9 @@ func (s *Store) initSchema(ctx context.Context) error {
 			severity TEXT,
 			PRIMARY KEY (id, ecosystem, package)
 		);
+
+		CREATE INDEX IF NOT EXISTS idx_affected_ecosystem ON affected(ecosystem);
+		CREATE INDEX IF NOT EXISTS idx_vulnerability_modified ON vulnerability(modified);
 	`
 	_, err = s.db.ExecContext(ctx, schema)
 	if err != nil {

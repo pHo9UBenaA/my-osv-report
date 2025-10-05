@@ -78,7 +78,7 @@ CREATE TABLE reported_snapshot (
 
 ## Indexes
 
-The following indexes are automatically created by PRIMARY KEY constraints:
+### Automatic Indexes (from PRIMARY KEY constraints)
 
 - `vulnerability(id)` - Primary key index
 - `affected(vuln_id, ecosystem, package)` - Composite primary key index
@@ -86,6 +86,11 @@ The following indexes are automatically created by PRIMARY KEY constraints:
 - `source_cursor(source)` - Primary key index
 - `tombstone(id)` - Primary key index
 - `reported_snapshot(id, ecosystem, package)` - Composite primary key index
+
+### Performance Optimization Indexes
+
+- `idx_affected_ecosystem` - Index on `affected(ecosystem)` for efficient ecosystem filtering
+- `idx_vulnerability_modified` - Index on `vulnerability(modified)` for efficient date-based queries and deletion
 
 ## Data Retention
 

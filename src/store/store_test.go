@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -568,6 +569,100 @@ func TestSaveReportSnapshot(t *testing.T) {
 
 	if id != "GHSA-test-3" {
 		t.Errorf("new snapshot id = %q, want GHSA-test-3", id)
+	}
+}
+
+func TestIndexPerformance(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	ctx := context.Background()
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	defer s.Close()
+
+	// Verify indexes exist
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("Open database error = %v", err)
+	}
+	defer db.Close()
+
+	// Check idx_affected_ecosystem exists
+	var ecosystemIndexCount int
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_affected_ecosystem'").Scan(&ecosystemIndexCount)
+	if err != nil {
+		t.Fatalf("Query index error = %v", err)
+	}
+	if ecosystemIndexCount != 1 {
+		t.Errorf("idx_affected_ecosystem not found")
+	}
+
+	// Check idx_vulnerability_modified exists
+	var modifiedIndexCount int
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_vulnerability_modified'").Scan(&modifiedIndexCount)
+	if err != nil {
+		t.Fatalf("Query index error = %v", err)
+	}
+	if modifiedIndexCount != 1 {
+		t.Errorf("idx_vulnerability_modified not found")
+	}
+
+	// Insert test data to verify index usage
+	baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 10; i++ {
+		vuln := store.Vulnerability{
+			ID:       fmt.Sprintf("GHSA-test-%d", i),
+			Modified: baseTime.Add(time.Duration(i) * 24 * time.Hour),
+		}
+		if err := s.SaveVulnerability(ctx, vuln); err != nil {
+			t.Fatalf("SaveVulnerability(%d) error = %v", i, err)
+		}
+
+		ecosystem := "npm"
+		if i%3 == 0 {
+			ecosystem = "PyPI"
+		} else if i%3 == 1 {
+			ecosystem = "Go"
+		}
+		affected := store.Affected{
+			VulnID:    vuln.ID,
+			Ecosystem: ecosystem,
+			Package:   fmt.Sprintf("package-%d", i),
+		}
+		if err := s.SaveAffected(ctx, affected); err != nil {
+			t.Fatalf("SaveAffected(%d) error = %v", i, err)
+		}
+	}
+
+	// Test ecosystem filter query uses index
+	// i=0,3,6,9: PyPI (4)
+	// i=1,4,7: Go (3)
+	// i=2,5,8: npm (3)
+	entries, err := s.GetVulnerabilitiesWithMetrics(ctx, "npm")
+	if err != nil {
+		t.Fatalf("GetVulnerabilitiesWithMetrics error = %v", err)
+	}
+	if len(entries) != 3 {
+		t.Errorf("Expected 3 npm entries, got %d", len(entries))
+	}
+
+	// Test delete old vulnerabilities uses index
+	cutoff := baseTime.Add(5 * 24 * time.Hour)
+	if err := s.DeleteVulnerabilitiesOlderThan(ctx, cutoff); err != nil {
+		t.Fatalf("DeleteVulnerabilitiesOlderThan error = %v", err)
+	}
+
+	// Verify deletion worked correctly
+	var remainingCount int
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM vulnerability").Scan(&remainingCount)
+	if err != nil {
+		t.Fatalf("Count remaining vulnerabilities error = %v", err)
+	}
+	if remainingCount != 5 {
+		t.Errorf("Expected 5 remaining vulnerabilities, got %d", remainingCount)
 	}
 }
 
