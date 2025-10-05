@@ -50,3 +50,110 @@ func TestCSVFormatter_Format(t *testing.T) {
 		t.Errorf("missing second entry with NA values in result")
 	}
 }
+
+func TestCSVFormatter_FormulaInjectionPrevention(t *testing.T) {
+	formatter := report.NewCSVFormatter()
+
+	tests := []struct {
+		name     string
+		entry    report.VulnerabilityEntry
+		wantSafe bool // true if dangerous prefixes should be escaped
+	}{
+		{
+			name: "package name starting with =",
+			entry: report.VulnerabilityEntry{
+				ID:        "GHSA-test-1234",
+				Ecosystem: "npm",
+				Package:   "=malicious-package",
+				Severity:  "HIGH",
+			},
+			wantSafe: true,
+		},
+		{
+			name: "package name starting with +",
+			entry: report.VulnerabilityEntry{
+				ID:        "GHSA-test-1234",
+				Ecosystem: "npm",
+				Package:   "+malicious-package",
+				Severity:  "HIGH",
+			},
+			wantSafe: true,
+		},
+		{
+			name: "package name starting with -",
+			entry: report.VulnerabilityEntry{
+				ID:        "GHSA-test-1234",
+				Ecosystem: "npm",
+				Package:   "-malicious-package",
+				Severity:  "HIGH",
+			},
+			wantSafe: true,
+		},
+		{
+			name: "package name starting with @",
+			entry: report.VulnerabilityEntry{
+				ID:        "GHSA-test-1234",
+				Ecosystem: "npm",
+				Package:   "@scoped/package",
+				Severity:  "HIGH",
+			},
+			wantSafe: true,
+		},
+		{
+			name: "ID starting with =",
+			entry: report.VulnerabilityEntry{
+				ID:        "=SUM(A1:A10)",
+				Ecosystem: "npm",
+				Package:   "safe-package",
+				Severity:  "HIGH",
+			},
+			wantSafe: true,
+		},
+		{
+			name: "severity starting with +",
+			entry: report.VulnerabilityEntry{
+				ID:        "GHSA-test-1234",
+				Ecosystem: "npm",
+				Package:   "safe-package",
+				Severity:  "+cmd|'/c calc'!A1",
+			},
+			wantSafe: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatter.Format([]report.VulnerabilityEntry{tt.entry})
+
+			// Check that dangerous characters are not at the start of fields
+			// when interpreted as CSV (after header line)
+			lines := strings.Split(result, "\n")
+			if len(lines) < 2 {
+				t.Fatalf("expected at least 2 lines, got %d", len(lines))
+			}
+
+			dataLine := lines[1]
+			if tt.wantSafe {
+				// Should not start with dangerous characters
+				dangerousPrefixes := []string{"=", "+", "-", "@"}
+				for _, prefix := range dangerousPrefixes {
+					// Check if any field in the data line starts with a dangerous prefix
+					// We need to properly parse CSV to check each field
+					fields := strings.Split(dataLine, ",")
+					for i, field := range fields {
+						// Trim quotes if present (proper CSV escaping)
+						trimmed := strings.Trim(field, "\"")
+						if strings.HasPrefix(trimmed, prefix) {
+							// If the original value started with this prefix, it should be escaped
+							if (i == 1 && strings.HasPrefix(tt.entry.Package, prefix)) ||
+								(i == 2 && strings.HasPrefix(tt.entry.ID, prefix)) ||
+								(i == 7 && strings.HasPrefix(tt.entry.Severity, prefix)) {
+								t.Errorf("field %d should escape dangerous prefix %q but got: %q", i, prefix, field)
+							}
+						}
+					}
+				}
+			}
+		})
+	}
+}
