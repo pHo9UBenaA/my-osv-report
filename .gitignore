@@ -2,12 +2,13 @@
 /osv-scraper
 
 # SQLite
-/osv.db
-/osv.db-shm
-/osv.db-wal
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
 
 # Reports
-/report.*
+/report*.*
 
 AGENTS.md
 CLAUDE.md

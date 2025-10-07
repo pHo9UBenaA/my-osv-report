@@ -10,7 +10,7 @@ CREATE TABLE vulnerability (
     published TEXT, -- Publication time (RFC3339 format)
     summary TEXT, -- Vulnerability summary
     details TEXT, -- Detailed description
-    severity TEXT                -- Severity score (e.g., CVSS score)
+    severity TEXT, -- Severity score (e.g., CVSS score)
 );
 ```
 
@@ -47,7 +47,7 @@ Manages processing cursor (last processed time) for each ecosystem
 ```sql
 CREATE TABLE source_cursor (
     source TEXT PRIMARY KEY, -- Ecosystem name (e.g., "npm", "PyPI", "Go")
-    cursor TEXT NOT NULL         -- Last processed time (RFC3339 format)
+    cursor TEXT NOT NULL, -- Last processed time (RFC3339 format)
 );
 ```
 
