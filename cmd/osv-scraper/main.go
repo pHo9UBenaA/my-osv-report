@@ -354,12 +354,17 @@ func generateReport(ctx context.Context, st *store.Store) error {
 
 	slog.Info("report generated successfully", "output", outputPath)
 
-	// If differential mode, save snapshot of what was reported
+	// If differential mode, save snapshot of all current vulnerabilities
 	if *reportDiff {
-		if err := st.SaveReportSnapshot(ctx, entries); err != nil {
+		// Fetch ALL current vulnerabilities to save as snapshot
+		allEntries, err := st.GetVulnerabilitiesWithMetrics(ctx, *reportEcosystem)
+		if err != nil {
+			return fmt.Errorf("get all vulnerabilities for snapshot: %w", err)
+		}
+		if err := st.SaveReportSnapshot(ctx, allEntries); err != nil {
 			return fmt.Errorf("save report snapshot: %w", err)
 		}
-		slog.Info("saved report snapshot", "count", len(entries))
+		slog.Info("saved report snapshot", "count", len(allEntries))
 	}
 
 	return nil
