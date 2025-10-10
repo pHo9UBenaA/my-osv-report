@@ -20,37 +20,13 @@ func (f *JSONLFormatter) Format(entries []VulnerabilityEntry) string {
 
 	for _, e := range entries {
 		obj := map[string]interface{}{
-			"ecosystem": e.Ecosystem,
-			"package":   e.Package,
-			"source":    e.ID,
-		}
-
-		// Handle published
-		if e.Published == "" {
-			obj["published"] = "NA"
-		} else {
-			obj["published"] = e.Published
-		}
-
-		// Handle modified
-		if e.Modified == "" {
-			obj["modified"] = "NA"
-		} else {
-			obj["modified"] = e.Modified
-		}
-
-		// Handle severity base score
-		if e.SeverityBaseScore == nil {
-			obj["severity_base_score"] = "NA"
-		} else {
-			obj["severity_base_score"] = formatBaseScore(e.SeverityBaseScore)
-		}
-
-		// Handle severity vector
-		if e.SeverityVector == "" {
-			obj["severity_vector"] = "NA"
-		} else {
-			obj["severity_vector"] = e.SeverityVector
+			"ecosystem":           e.Ecosystem,
+			"package":             e.Package,
+			"source":              e.ID,
+			"published":           formatString(e.Published),
+			"modified":            formatString(e.Modified),
+			"severity_base_score": formatBaseScore(e.SeverityBaseScore),
+			"severity_vector":     formatString(e.SeverityVector),
 		}
 
 		data, err := json.Marshal(obj)

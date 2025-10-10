@@ -29,19 +29,14 @@ func (f *CSVFormatter) Format(entries []VulnerabilityEntry) string {
 
 	// Write entries
 	for _, e := range entries {
-		published := formatString(e.Published)
-		modified := formatString(e.Modified)
-		severityBase := formatBaseScore(e.SeverityBaseScore)
-		severityVector := formatString(e.SeverityVector)
-
 		record := []string{
 			escapeCSVInjection(e.Ecosystem),
 			escapeCSVInjection(e.Package),
 			escapeCSVInjection(e.ID),
-			escapeCSVInjection(published),
-			escapeCSVInjection(modified),
-			escapeCSVInjection(severityBase),
-			escapeCSVInjection(severityVector),
+			escapeCSVInjection(formatString(e.Published)),
+			escapeCSVInjection(formatString(e.Modified)),
+			escapeCSVInjection(formatBaseScore(e.SeverityBaseScore)),
+			escapeCSVInjection(formatString(e.SeverityVector)),
 		}
 		if err := w.Write(record); err != nil {
 			return ""

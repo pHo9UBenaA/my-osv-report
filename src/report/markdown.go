@@ -51,30 +51,16 @@ func (f *MarkdownFormatter) Format(entries []VulnerabilityEntry) string {
 		ecosystem := escapeMarkdown(e.Ecosystem)
 		pkg := escapeMarkdown(e.Package)
 		id := escapeMarkdown(e.ID)
-		published := formatString(e.Published)
-		modified := formatString(e.Modified)
+		published := escapeMarkdown(formatString(e.Published))
+		modified := escapeMarkdown(formatString(e.Modified))
 		severityBase := formatBaseScore(e.SeverityBaseScore)
-		severityVector := formatString(e.SeverityVector)
+		severityVector := escapeMarkdown(formatString(e.SeverityVector))
 
 		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s |\n",
 			ecosystem, pkg, id, published, modified, severityBase, severityVector))
 	}
 
 	return sb.String()
-}
-
-func formatString(val string) string {
-	if val == "" {
-		return "NA"
-	}
-	return escapeMarkdown(val)
-}
-
-func formatBaseScore(val *float64) string {
-	if val == nil {
-		return "NA"
-	}
-	return fmt.Sprintf("%.1f", *val)
 }
 
 // escapeMarkdown escapes special characters that could break Markdown table formatting

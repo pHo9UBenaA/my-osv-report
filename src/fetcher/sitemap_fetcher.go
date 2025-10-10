@@ -31,13 +31,11 @@ type SitemapFetcher struct {
 	cursor     time.Time
 }
 
-const defaultSitemapTimeout = 30 * time.Second
-
 func newSitemapFetcher(url string, client *http.Client, cursor time.Time) *SitemapFetcher {
 	if client == nil {
-		client = &http.Client{Timeout: defaultSitemapTimeout}
+		client = NewHTTPClient()
 	} else if client.Timeout == 0 {
-		client.Timeout = defaultSitemapTimeout
+		client.Timeout = defaultHTTPTimeout
 	}
 
 	return &SitemapFetcher{
