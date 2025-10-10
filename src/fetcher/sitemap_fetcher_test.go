@@ -102,7 +102,7 @@ func TestSitemapFetcher_FetchWithCursorFilter(t *testing.T) {
 	defer server.Close()
 
 	cursor := time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC)
-	f := fetcher.NewSitemapFetcherWithCursor(server.URL, cursor)
+	f := fetcher.NewSitemapFetcher(server.URL, fetcher.WithCursor(cursor))
 	ctx := context.Background()
 
 	entries, err := f.Fetch(ctx)
@@ -146,7 +146,7 @@ func TestSitemapFetcherWithCustomClientTimeout(t *testing.T) {
 
 	ctx := context.Background()
 	client := &http.Client{Timeout: 50 * time.Millisecond}
-	f := fetcher.NewSitemapFetcherWithClient(server.URL, client)
+	f := fetcher.NewSitemapFetcher(server.URL, fetcher.WithHTTPClient(client))
 
 	start := time.Now()
 	_, err := f.Fetch(ctx)
@@ -175,7 +175,7 @@ func TestSitemapFetcherWithCursorHasTimeout(t *testing.T) {
 	ctx := context.Background()
 	cursor := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
 	client := &http.Client{Timeout: 50 * time.Millisecond}
-	f := fetcher.NewSitemapFetcherWithClientAndCursor(server.URL, client, cursor)
+	f := fetcher.NewSitemapFetcher(server.URL, fetcher.WithHTTPClient(client), fetcher.WithCursor(cursor))
 
 	start := time.Now()
 	_, err := f.Fetch(ctx)

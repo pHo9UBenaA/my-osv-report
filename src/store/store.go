@@ -10,6 +10,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const timeFormat = time.RFC3339
+
 // Vulnerability represents a vulnerability record in the database.
 type Vulnerability struct {
 	ID                string
@@ -42,6 +44,64 @@ type VulnerabilityReportEntry struct {
 // Store manages database operations for the OSV scraper.
 type Store struct {
 	db *sql.DB
+}
+
+func buildVulnerabilityQuery(ecosystem string, withDiffFilter bool) (string, []interface{}) {
+	query := `
+		SELECT
+			v.id,
+			a.ecosystem,
+			a.package,
+			COALESCE(v.published, '') as published,
+			v.modified,
+			v.severity_base_score,
+			COALESCE(v.severity_vector, '') as severity_vector
+		FROM vulnerability v
+		INNER JOIN affected a ON v.id = a.vuln_id
+	`
+
+	if withDiffFilter {
+		query += `
+		LEFT JOIN reported_snapshot r ON v.id = r.id AND a.ecosystem = r.ecosystem AND a.package = r.package
+		WHERE (
+			r.id IS NULL
+			OR r.modified != v.modified
+			OR COALESCE(r.severity_base_score, -1) != COALESCE(v.severity_base_score, -1)
+			OR COALESCE(r.severity_vector, '') != COALESCE(v.severity_vector, '')
+		)
+	`
+	}
+
+	args := []interface{}{}
+	if ecosystem != "" {
+		clause := " WHERE"
+		if withDiffFilter {
+			clause = " AND"
+		}
+		query += clause + " a.ecosystem = ?"
+		args = append(args, ecosystem)
+	}
+
+	query += " ORDER BY COALESCE(v.published, v.modified) DESC"
+
+	return query, args
+}
+
+func scanVulnerabilityRows(rows *sql.Rows) ([]VulnerabilityReportEntry, error) {
+	var entries []VulnerabilityReportEntry
+	for rows.Next() {
+		var e VulnerabilityReportEntry
+		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
+			return nil, fmt.Errorf("scan row: %w", err)
+		}
+		entries = append(entries, e)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+
+	return entries, nil
 }
 
 // NewStore creates a new store instance and initializes the database.
@@ -172,7 +232,7 @@ func (s *Store) SaveCursor(ctx context.Context, source string, cursor time.Time)
 		VALUES (?, ?)
 		ON CONFLICT(source) DO UPDATE SET cursor = excluded.cursor
 	`
-	_, err := s.db.ExecContext(ctx, query, source, cursor.Format(time.RFC3339))
+	_, err := s.db.ExecContext(ctx, query, source, cursor.Format(timeFormat))
 	if err != nil {
 		return fmt.Errorf("save cursor: %w", err)
 	}
@@ -195,7 +255,7 @@ func (s *Store) GetCursor(ctx context.Context, source string) (time.Time, error)
 		return time.Time{}, fmt.Errorf("get cursor: %w", err)
 	}
 
-	cursor, err := time.Parse(time.RFC3339, cursorStr)
+	cursor, err := time.Parse(timeFormat, cursorStr)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("parse cursor: %w", err)
 	}
@@ -207,7 +267,7 @@ func (s *Store) GetCursor(ctx context.Context, source string) (time.Time, error)
 func (s *Store) SaveVulnerability(ctx context.Context, v Vulnerability) error {
 	publishedStr := ""
 	if !v.Published.IsZero() {
-		publishedStr = v.Published.Format(time.RFC3339)
+		publishedStr = v.Published.Format(timeFormat)
 	}
 
 	query := `
@@ -232,7 +292,7 @@ func (s *Store) SaveVulnerability(ctx context.Context, v Vulnerability) error {
 		vector = v.SeverityVector
 	}
 
-	_, err := s.db.ExecContext(ctx, query, v.ID, v.Modified.Format(time.RFC3339), publishedStr, v.Summary, v.Details, base, vector)
+	_, err := s.db.ExecContext(ctx, query, v.ID, v.Modified.Format(timeFormat), publishedStr, v.Summary, v.Details, base, vector)
 	if err != nil {
 		return fmt.Errorf("save vulnerability: %w", err)
 	}
@@ -270,26 +330,7 @@ func (s *Store) SaveTombstone(ctx context.Context, id string) error {
 // GetVulnerabilitiesForReport retrieves vulnerabilities for reporting.
 // If ecosystem is empty, returns all vulnerabilities. Otherwise, filters by ecosystem.
 func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
-	query := `
-		SELECT
-			v.id,
-			a.ecosystem,
-			a.package,
-			COALESCE(v.published, '') as published,
-			v.modified,
-			v.severity_base_score,
-			COALESCE(v.severity_vector, '') as severity_vector
-		FROM vulnerability v
-		INNER JOIN affected a ON v.id = a.vuln_id
-	`
-
-	args := []interface{}{}
-	if ecosystem != "" {
-		query += " WHERE a.ecosystem = ?"
-		args = append(args, ecosystem)
-	}
-
-	query += " ORDER BY COALESCE(v.published, v.modified) DESC"
+	query, args := buildVulnerabilityQuery(ecosystem, false)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -297,20 +338,7 @@ func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem strin
 	}
 	defer rows.Close()
 
-	var entries []VulnerabilityReportEntry
-	for rows.Next() {
-		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
-		}
-		entries = append(entries, e)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate rows: %w", err)
-	}
-
-	return entries, nil
+	return scanVulnerabilityRows(rows)
 }
 
 // DeleteVulnerabilitiesOlderThan deletes vulnerabilities and related data older than the cutoff time.
@@ -321,7 +349,7 @@ func (s *Store) DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.
 	}
 	defer tx.Rollback()
 
-	cutoffStr := cutoff.Format(time.RFC3339)
+	cutoffStr := cutoff.Format(timeFormat)
 
 	// Delete affected records for old vulnerabilities
 	_, err = tx.ExecContext(ctx, `
@@ -349,33 +377,7 @@ func (s *Store) DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.
 // GetUnreportedVulnerabilities retrieves vulnerabilities that differ from the last snapshot.
 // Returns vulnerabilities that are new or have changed (different modified/severity).
 func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
-	query := `
-		SELECT
-			v.id,
-			a.ecosystem,
-			a.package,
-			COALESCE(v.published, '') as published,
-			v.modified,
-			v.severity_base_score,
-			COALESCE(v.severity_vector, '') as severity_vector
-		FROM vulnerability v
-		INNER JOIN affected a ON v.id = a.vuln_id
-		LEFT JOIN reported_snapshot r ON v.id = r.id AND a.ecosystem = r.ecosystem AND a.package = r.package
-		WHERE (
-			r.id IS NULL
-			OR r.modified != v.modified
-			OR COALESCE(r.severity_base_score, -1) != COALESCE(v.severity_base_score, -1)
-			OR COALESCE(r.severity_vector, '') != COALESCE(v.severity_vector, '')
-		)
-	`
-
-	args := []interface{}{}
-	if ecosystem != "" {
-		query += " AND a.ecosystem = ?"
-		args = append(args, ecosystem)
-	}
-
-	query += " ORDER BY COALESCE(v.published, v.modified) DESC"
+	query, args := buildVulnerabilityQuery(ecosystem, true)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -383,20 +385,7 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 	}
 	defer rows.Close()
 
-	var entries []VulnerabilityReportEntry
-	for rows.Next() {
-		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
-		}
-		entries = append(entries, e)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate rows: %w", err)
-	}
-
-	return entries, nil
+	return scanVulnerabilityRows(rows)
 }
 
 // SaveReportSnapshot saves the current report snapshot, replacing any existing snapshot.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"time"
@@ -31,60 +30,48 @@ type SitemapFetcher struct {
 	cursor     time.Time
 }
 
-func newSitemapFetcher(url string, client *http.Client, cursor time.Time) *SitemapFetcher {
-	if client == nil {
-		client = NewHTTPClient()
-	} else if client.Timeout == 0 {
-		client.Timeout = defaultHTTPTimeout
-	}
+// SitemapFetcherOption configures a SitemapFetcher.
+type SitemapFetcherOption func(*SitemapFetcher)
 
-	return &SitemapFetcher{
+// WithHTTPClient sets a custom HTTP client on the sitemap fetcher.
+func WithHTTPClient(client *http.Client) SitemapFetcherOption {
+	return func(f *SitemapFetcher) {
+		f.httpClient = client
+	}
+}
+
+// WithCursor sets the cursor used to filter sitemap entries.
+func WithCursor(cursor time.Time) SitemapFetcherOption {
+	return func(f *SitemapFetcher) {
+		f.cursor = cursor
+	}
+}
+
+// NewSitemapFetcher creates a new sitemap fetcher with optional configuration.
+func NewSitemapFetcher(url string, opts ...SitemapFetcherOption) *SitemapFetcher {
+	f := &SitemapFetcher{
 		url:        url,
-		httpClient: client,
-		cursor:     cursor,
+		httpClient: NewHTTPClient(),
 	}
-}
 
-// NewSitemapFetcher creates a new sitemap fetcher without cursor filtering.
-func NewSitemapFetcher(url string) *SitemapFetcher {
-	return newSitemapFetcher(url, nil, time.Time{})
-}
+	for _, opt := range opts {
+		opt(f)
+	}
 
-// NewSitemapFetcherWithCursor creates a new sitemap fetcher with cursor filtering.
-func NewSitemapFetcherWithCursor(url string, cursor time.Time) *SitemapFetcher {
-	return newSitemapFetcher(url, nil, cursor)
-}
+	if f.httpClient == nil {
+		f.httpClient = NewHTTPClient()
+	} else if f.httpClient.Timeout == 0 {
+		f.httpClient.Timeout = defaultHTTPTimeout
+	}
 
-// NewSitemapFetcherWithClient creates a new sitemap fetcher using the provided HTTP client.
-func NewSitemapFetcherWithClient(url string, client *http.Client) *SitemapFetcher {
-	return newSitemapFetcher(url, client, time.Time{})
-}
-
-// NewSitemapFetcherWithClientAndCursor creates a new sitemap fetcher with cursor filtering and custom client.
-func NewSitemapFetcherWithClientAndCursor(url string, client *http.Client, cursor time.Time) *SitemapFetcher {
-	return newSitemapFetcher(url, client, cursor)
+	return f
 }
 
 // Fetch downloads and parses the sitemap XML to extract vulnerability IDs and lastmod.
 func (f *SitemapFetcher) Fetch(ctx context.Context) ([]osv.Entry, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
+	body, err := doHTTPGet(ctx, f.httpClient, f.url)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
-	}
-
-	resp, err := f.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, err
 	}
 
 	return f.parseSitemap(body)

@@ -183,7 +183,7 @@ func processEcosystem(ctx context.Context, eco interface {
 
 	// Fetch from sitemap with cursor filtering
 	sitemapURL := eco.SitemapURL()
-	sitemapFetcher := fetcher.NewSitemapFetcherWithCursor(sitemapURL, lastCursor)
+	sitemapFetcher := fetcher.NewSitemapFetcher(sitemapURL, fetcher.WithCursor(lastCursor))
 	entries, err := sitemapFetcher.Fetch(ctx)
 	if err != nil {
 		return fmt.Errorf("fetch sitemap from %s: %w", sitemapURL, err)

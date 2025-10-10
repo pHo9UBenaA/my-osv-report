@@ -1,6 +1,7 @@
 package fetcher
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -24,22 +25,12 @@ func NewCSVFetcher(url string) *CSVFetcher {
 
 // Fetch downloads and parses the CSV file.
 func (f *CSVFetcher) Fetch(ctx context.Context) ([]osv.Entry, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.url, nil)
+	body, err := doHTTPGet(ctx, f.httpClient, f.url)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, err
 	}
 
-	resp, err := f.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	entries, err := osv.ParseCSV(resp.Body)
+	entries, err := osv.ParseCSV(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("parse csv: %w", err)
 	}

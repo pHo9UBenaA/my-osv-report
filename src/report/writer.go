@@ -28,19 +28,11 @@ type Formatter interface {
 }
 
 // Writer handles writing reports to files.
-type Writer struct {
-	mdFormatter    *MarkdownFormatter
-	csvFormatter   *CSVFormatter
-	jsonlFormatter *JSONLFormatter
-}
+type Writer struct{}
 
 // NewWriter creates a new report writer.
 func NewWriter() *Writer {
-	return &Writer{
-		mdFormatter:    NewMarkdownFormatter(),
-		csvFormatter:   NewCSVFormatter(),
-		jsonlFormatter: NewJSONLFormatter(),
-	}
+	return &Writer{}
 }
 
 func (w *Writer) write(ctx context.Context, path string, entries []VulnerabilityEntry, formatter Formatter, formatName string) error {
@@ -53,15 +45,15 @@ func (w *Writer) write(ctx context.Context, path string, entries []Vulnerability
 
 // WriteMarkdown writes vulnerability entries to a Markdown file.
 func (w *Writer) WriteMarkdown(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	return w.write(ctx, path, entries, w.mdFormatter, "markdown")
+	return w.write(ctx, path, entries, NewMarkdownFormatter(), "markdown")
 }
 
 // WriteCSV writes vulnerability entries to a CSV file.
 func (w *Writer) WriteCSV(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	return w.write(ctx, path, entries, w.csvFormatter, "csv")
+	return w.write(ctx, path, entries, NewCSVFormatter(), "csv")
 }
 
 // WriteJSONL writes vulnerability entries to a JSONL file.
 func (w *Writer) WriteJSONL(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	return w.write(ctx, path, entries, w.jsonlFormatter, "jsonl")
+	return w.write(ctx, path, entries, NewJSONLFormatter(), "jsonl")
 }
