@@ -46,45 +46,81 @@ type Store struct {
 	db *sql.DB
 }
 
-func buildVulnerabilityQuery(ecosystem string, withDiffFilter bool) (string, []interface{}) {
-	query := `
-		SELECT
-			v.id,
-			a.ecosystem,
-			a.package,
-			COALESCE(v.published, '') as published,
-			v.modified,
-			v.severity_base_score,
-			COALESCE(v.severity_vector, '') as severity_vector
-		FROM vulnerability v
-		INNER JOIN affected a ON v.id = a.vuln_id
-	`
-
-	if withDiffFilter {
-		query += `
-		LEFT JOIN reported_snapshot r ON v.id = r.id AND a.ecosystem = r.ecosystem AND a.package = r.package
-		WHERE (
-			r.id IS NULL
-			OR r.modified != v.modified
-			OR COALESCE(r.severity_base_score, -1) != COALESCE(v.severity_base_score, -1)
-			OR COALESCE(r.severity_vector, '') != COALESCE(v.severity_vector, '')
-		)
-	`
+func nullableFloat64Arg(value sql.NullFloat64) interface{} {
+	if value.Valid {
+		return value.Float64
 	}
+	return nil
+}
 
+func optionalStringArg(value string) interface{} {
+	if value != "" {
+		return value
+	}
+	return nil
+}
+
+const baseVulnerabilitySelect = `
+	SELECT
+		v.id,
+		a.ecosystem,
+		a.package,
+		COALESCE(v.published, '') as published,
+		v.modified,
+		v.severity_base_score,
+		COALESCE(v.severity_vector, '') as severity_vector
+	FROM vulnerability v
+	INNER JOIN affected a ON v.id = a.vuln_id
+`
+
+const diffJoinClause = `
+	LEFT JOIN reported_snapshot r ON v.id = r.id AND a.ecosystem = r.ecosystem AND a.package = r.package
+`
+
+const diffCondition = `(
+	r.id IS NULL
+	OR r.modified != v.modified
+	OR COALESCE(r.severity_base_score, -1) != COALESCE(v.severity_base_score, -1)
+	OR COALESCE(r.severity_vector, '') != COALESCE(v.severity_vector, '')
+)`
+
+const orderByClause = " ORDER BY COALESCE(v.published, v.modified) DESC"
+
+func buildReportQuery(ecosystem string) (string, []interface{}) {
+	conditions, args := buildConditions(ecosystem)
+	query := appendConditions(baseVulnerabilitySelect, conditions)
+	return query + orderByClause, args
+}
+
+func buildDiffReportQuery(ecosystem string) (string, []interface{}) {
+	conditions := []string{diffCondition}
 	args := []interface{}{}
+
 	if ecosystem != "" {
-		clause := " WHERE"
-		if withDiffFilter {
-			clause = " AND"
-		}
-		query += clause + " a.ecosystem = ?"
+		conditions = append(conditions, "a.ecosystem = ?")
 		args = append(args, ecosystem)
 	}
 
-	query += " ORDER BY COALESCE(v.published, v.modified) DESC"
+	query := baseVulnerabilitySelect + diffJoinClause
+	query = appendConditions(query, conditions)
 
-	return query, args
+	return query + orderByClause, args
+}
+
+func buildConditions(ecosystem string) ([]string, []interface{}) {
+	if ecosystem == "" {
+		return nil, nil
+	}
+
+	return []string{"a.ecosystem = ?"}, []interface{}{ecosystem}
+}
+
+func appendConditions(query string, conditions []string) string {
+	if len(conditions) == 0 {
+		return query
+	}
+
+	return query + "\nWHERE " + strings.Join(conditions, "\n  AND ")
 }
 
 func scanVulnerabilityRows(rows *sql.Rows) ([]VulnerabilityReportEntry, error) {
@@ -106,8 +142,8 @@ func scanVulnerabilityRows(rows *sql.Rows) ([]VulnerabilityReportEntry, error) {
 
 // NewStore creates a new store instance and initializes the database.
 func NewStore(ctx context.Context, dbPath string) (*Store, error) {
-	// Add pragma parameters for concurrent access support
-	connStr := dbPath + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+	// Open SQLite database; WAL/busy timeout configured in initSchema
+	connStr := dbPath
 	db, err := sql.Open("sqlite", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
@@ -133,18 +169,38 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 }
 
 func (s *Store) initSchema(ctx context.Context) error {
-	// Enable WAL mode for concurrent write support
-	_, err := s.db.ExecContext(ctx, "PRAGMA journal_mode=WAL")
-	if err != nil {
+	if err := s.enableSQLitePragmas(ctx); err != nil {
+		return err
+	}
+
+	if err := s.ensureSchema(ctx); err != nil {
+		return err
+	}
+
+	if err := s.runMigrations(ctx); err != nil {
+		return err
+	}
+
+	if err := s.backfillSeverityVector(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Store) enableSQLitePragmas(ctx context.Context) error {
+	if _, err := s.db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
 		return fmt.Errorf("enable WAL mode: %w", err)
 	}
 
-	// Set busy timeout to 5 seconds
-	_, err = s.db.ExecContext(ctx, "PRAGMA busy_timeout=5000")
-	if err != nil {
+	if _, err := s.db.ExecContext(ctx, "PRAGMA busy_timeout=5000"); err != nil {
 		return fmt.Errorf("set busy timeout: %w", err)
 	}
 
+	return nil
+}
+
+func (s *Store) ensureSchema(ctx context.Context) error {
 	schema := `
 		CREATE TABLE IF NOT EXISTS source_cursor (
 			source TEXT PRIMARY KEY,
@@ -188,12 +244,15 @@ func (s *Store) initSchema(ctx context.Context) error {
 		CREATE INDEX IF NOT EXISTS idx_affected_ecosystem ON affected(ecosystem);
 		CREATE INDEX IF NOT EXISTS idx_vulnerability_modified ON vulnerability(modified);
 	`
-	_, err = s.db.ExecContext(ctx, schema)
-	if err != nil {
+
+	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("create schema: %w", err)
 	}
 
-	// Migrate existing tables: add published and severity columns if they don't exist
+	return nil
+}
+
+func (s *Store) runMigrations(ctx context.Context) error {
 	migrations := []string{
 		"ALTER TABLE vulnerability ADD COLUMN published TEXT",
 		"ALTER TABLE vulnerability ADD COLUMN severity_base_score REAL",
@@ -202,16 +261,19 @@ func (s *Store) initSchema(ctx context.Context) error {
 		"ALTER TABLE reported_snapshot ADD COLUMN severity_vector TEXT",
 		"DROP TABLE IF EXISTS package_metrics",
 	}
+
 	for _, migration := range migrations {
-		_, err = s.db.ExecContext(ctx, migration)
-		// Ignore "duplicate column" errors (SQLite doesn't have IF NOT EXISTS for ALTER TABLE ADD COLUMN)
+		_, err := s.db.ExecContext(ctx, migration)
 		if err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			return fmt.Errorf("run migration: %w", err)
 		}
 	}
 
-	// Backfill severity_vector from legacy severity column if present.
-	_, err = s.db.ExecContext(ctx, `
+	return nil
+}
+
+func (s *Store) backfillSeverityVector(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `
 		UPDATE vulnerability
 		SET severity_vector = severity
 		WHERE (severity_vector IS NULL OR severity_vector = '')
@@ -282,17 +344,7 @@ func (s *Store) SaveVulnerability(ctx context.Context, v Vulnerability) error {
 			severity_vector = excluded.severity_vector
 	`
 
-	var base interface{}
-	if v.SeverityBaseScore.Valid {
-		base = v.SeverityBaseScore.Float64
-	}
-
-	var vector interface{}
-	if v.SeverityVector != "" {
-		vector = v.SeverityVector
-	}
-
-	_, err := s.db.ExecContext(ctx, query, v.ID, v.Modified.Format(timeFormat), publishedStr, v.Summary, v.Details, base, vector)
+	_, err := s.db.ExecContext(ctx, query, v.ID, v.Modified.Format(timeFormat), publishedStr, v.Summary, v.Details, nullableFloat64Arg(v.SeverityBaseScore), optionalStringArg(v.SeverityVector))
 	if err != nil {
 		return fmt.Errorf("save vulnerability: %w", err)
 	}
@@ -330,7 +382,7 @@ func (s *Store) SaveTombstone(ctx context.Context, id string) error {
 // GetVulnerabilitiesForReport retrieves vulnerabilities for reporting.
 // If ecosystem is empty, returns all vulnerabilities. Otherwise, filters by ecosystem.
 func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
-	query, args := buildVulnerabilityQuery(ecosystem, false)
+	query, args := buildReportQuery(ecosystem)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -377,7 +429,7 @@ func (s *Store) DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.
 // GetUnreportedVulnerabilities retrieves vulnerabilities that differ from the last snapshot.
 // Returns vulnerabilities that are new or have changed (different modified/severity).
 func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
-	query, args := buildVulnerabilityQuery(ecosystem, true)
+	query, args := buildDiffReportQuery(ecosystem)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -413,11 +465,7 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []VulnerabilityR
 	defer stmt.Close()
 
 	for _, e := range entries {
-		var base interface{}
-		if e.SeverityBaseScore.Valid {
-			base = e.SeverityBaseScore.Float64
-		}
-		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, base, e.SeverityVector)
+		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, nullableFloat64Arg(e.SeverityBaseScore), optionalStringArg(e.SeverityVector))
 		if err != nil {
 			return fmt.Errorf("insert snapshot entry: %w", err)
 		}

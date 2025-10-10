@@ -151,6 +151,66 @@ func TestSaveVulnerabilityWithDetails(t *testing.T) {
 	}
 }
 
+func TestSaveVulnerabilitySeverityFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	ctx := context.Background()
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	defer s.Close()
+
+	vulnID := "GHSA-severity-check"
+	modified := time.Date(2025, 10, 4, 12, 0, 0, 0, time.UTC)
+
+	if err := s.SaveVulnerability(ctx, store.Vulnerability{ID: vulnID, Modified: modified}); err != nil {
+		t.Fatalf("SaveVulnerability() error = %v", err)
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	defer db.Close()
+
+	var base sql.NullFloat64
+	var vector sql.NullString
+	if err := db.QueryRowContext(ctx, "SELECT severity_base_score, severity_vector FROM vulnerability WHERE id = ?", vulnID).Scan(&base, &vector); err != nil {
+		t.Fatalf("query severity fields: %v", err)
+	}
+
+	if base.Valid {
+		t.Error("severity_base_score should be NULL when not provided")
+	}
+	if vector.Valid {
+		t.Error("severity_vector should be NULL when not provided")
+	}
+
+	update := store.Vulnerability{
+		ID:                vulnID,
+		Modified:          modified.Add(time.Minute),
+		SeverityBaseScore: sql.NullFloat64{Float64: 7.5, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:L",
+	}
+
+	if err := s.SaveVulnerability(ctx, update); err != nil {
+		t.Fatalf("SaveVulnerability(update) error = %v", err)
+	}
+
+	if err := db.QueryRowContext(ctx, "SELECT severity_base_score, severity_vector FROM vulnerability WHERE id = ?", vulnID).Scan(&base, &vector); err != nil {
+		t.Fatalf("query severity fields after update: %v", err)
+	}
+
+	if !base.Valid || base.Float64 != 7.5 {
+		t.Errorf("severity_base_score = %v (valid=%v), want 7.5 and true", base.Float64, base.Valid)
+	}
+	if !vector.Valid || vector.String != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:L" {
+		t.Errorf("severity_vector = %q (valid=%v), want expected vector", vector.String, vector.Valid)
+	}
+}
+
 func TestSaveAffected(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -547,6 +607,20 @@ func TestSaveReportSnapshot(t *testing.T) {
 	}
 	if severityVector != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
 		t.Errorf("severity vector stored = %q, want expected vector", severityVector)
+	}
+
+	var nullScore sql.NullFloat64
+	var nullVector sql.NullString
+	err = db.QueryRowContext(ctx, "SELECT severity_base_score, severity_vector FROM reported_snapshot WHERE id = ?", "GHSA-test-2").Scan(&nullScore, &nullVector)
+	if err != nil {
+		t.Fatalf("query second entry severity fields error = %v", err)
+	}
+
+	if nullScore.Valid {
+		t.Error("second entry severity_base_score should be NULL when not provided")
+	}
+	if nullVector.Valid {
+		t.Error("second entry severity_vector should be NULL when not provided")
 	}
 
 	// Save again (should replace old snapshot)
