@@ -9,9 +9,9 @@ import (
 
 func TestEcosystem_ModifiedCSVURL(t *testing.T) {
 	cases := []struct {
-		name     string
-		eco      ecosystem.Ecosystem
-		wantURL  string
+		name    string
+		eco     ecosystem.Ecosystem
+		wantURL string
 	}{
 		{
 			name:    "npm",

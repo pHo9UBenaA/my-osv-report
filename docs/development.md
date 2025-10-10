@@ -11,7 +11,6 @@ osv-scraper/
 │   ├── config/          # Configuration management (environment variable loading)
 │   ├── ecosystem/       # Ecosystem definitions & URL mapper
 │   ├── fetcher/         # Sitemap fetcher & CSV fetcher
-│   ├── metrics/         # Metrics collection (GitHub, npm, PyPI)
 │   ├── osv/             # OSV scraper, API client & parser
 │   ├── report/          # Report output (CSV, JSONL, Markdown)
 │   └── store/           # SQLite storage

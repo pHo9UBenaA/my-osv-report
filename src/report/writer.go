@@ -8,16 +8,16 @@ import (
 
 // Writer handles writing reports to files.
 type Writer struct {
-	mdFormatter   *MarkdownFormatter
-	csvFormatter  *CSVFormatter
+	mdFormatter    *MarkdownFormatter
+	csvFormatter   *CSVFormatter
 	jsonlFormatter *JSONLFormatter
 }
 
 // NewWriter creates a new report writer.
 func NewWriter() *Writer {
 	return &Writer{
-		mdFormatter:   NewMarkdownFormatter(),
-		csvFormatter:  NewCSVFormatter(),
+		mdFormatter:    NewMarkdownFormatter(),
+		csvFormatter:   NewCSVFormatter(),
 		jsonlFormatter: NewJSONLFormatter(),
 	}
 }

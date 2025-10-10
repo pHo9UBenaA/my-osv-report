@@ -12,46 +12,45 @@ func TestMarkdownFormatter_Format(t *testing.T) {
 
 	entries := []report.VulnerabilityEntry{
 		{
-			ID:          "GHSA-xxxx-yyyy-zzzz",
-			Ecosystem:   "npm",
-			Package:     "express",
-			Downloads:   5678901,
-			GitHubStars: 1234,
-			Published:   "2025-10-01T00:00:00Z",
-			Modified:    "2025-10-02T00:00:00Z",
-			Severity:    "HIGH",
+			ID:        "GHSA-xxxx-yyyy-zzzz",
+			Ecosystem: "npm",
+			Package:   "express",
+			Published: "2025-10-01T00:00:00Z",
+			Modified:  "2025-10-02T00:00:00Z",
+			SeverityBaseScore: func() *float64 {
+				val := 9.8
+				return &val
+			}(),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 		},
 		{
-			ID:          "GHSA-aaaa-bbbb-cccc",
-			Ecosystem:   "PyPI",
-			Package:     "requests",
-			Downloads:   0,
-			GitHubStars: 0,
-			Published:   "",
-			Modified:    "",
-			Severity:    "",
+			ID:        "GHSA-aaaa-bbbb-cccc",
+			Ecosystem: "PyPI",
+			Package:   "requests",
+			Published: "",
+			Modified:  "",
 		},
 	}
 
 	result := formatter.Format(entries)
 
 	// Check header
-	if !strings.Contains(result, "| Ecosystem | Package | Source | Download | GitHub Star | Published | Modified | Severity |") {
+	if !strings.Contains(result, "| Ecosystem | Package | Source | Published | Modified | Severity: Base Score | Severity: Vector String |") {
 		t.Errorf("missing header in result")
 	}
 
 	// Check separator
-	if !strings.Contains(result, "| --- | --- | --- | --- | --- | --- | --- | --- |") {
+	if !strings.Contains(result, "| --- | --- | --- | --- | --- | --- | --- |") {
 		t.Errorf("missing separator in result")
 	}
 
 	// Check first entry
-	if !strings.Contains(result, "| npm | express | GHSA-xxxx-yyyy-zzzz | 5678901 | 1234 | 2025-10-01T00:00:00Z | 2025-10-02T00:00:00Z | HIGH |") {
+	if !strings.Contains(result, "| npm | express | GHSA-xxxx-yyyy-zzzz | 2025-10-01T00:00:00Z | 2025-10-02T00:00:00Z | 9.8 | CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H |") {
 		t.Errorf("missing first entry in result")
 	}
 
 	// Check second entry with NA values
-	if !strings.Contains(result, "| PyPI | requests | GHSA-aaaa-bbbb-cccc | NA | NA | NA | NA | NA |") {
+	if !strings.Contains(result, "| PyPI | requests | GHSA-aaaa-bbbb-cccc | NA | NA | NA | NA |") {
 		t.Errorf("missing second entry with NA values in result")
 	}
 }
@@ -61,24 +60,24 @@ func TestMarkdownFormatter_Format_EscapesSpecialCharacters(t *testing.T) {
 
 	entries := []report.VulnerabilityEntry{
 		{
-			ID:          "GHSA-test-0001",
-			Ecosystem:   "npm",
-			Package:     "pkg-with-|pipe|chars",
-			Downloads:   100,
-			GitHubStars: 50,
-			Published:   "2025-10-01",
-			Modified:    "2025-10-02",
-			Severity:    "HIGH|CRITICAL",
+			ID:             "GHSA-test-0001",
+			Ecosystem:      "npm",
+			Package:        "pkg-with-|pipe|chars",
+			Published:      "2025-10-01",
+			Modified:       "2025-10-02",
+			SeverityVector: "HIGH|CRITICAL",
+			SeverityBaseScore: func() *float64 {
+				val := 7.2
+				return &val
+			}(),
 		},
 		{
-			ID:          "<script>alert('xss')</script>",
-			Ecosystem:   "PyPI",
-			Package:     "[dangerous](http://evil.com)",
-			Downloads:   200,
-			GitHubStars: 10,
-			Published:   "2025-10-03",
-			Modified:    "2025-10-04",
-			Severity:    "*emphasis*",
+			ID:             "<script>alert('xss')</script>",
+			Ecosystem:      "PyPI",
+			Package:        "[dangerous](http://evil.com)",
+			Published:      "2025-10-03",
+			Modified:       "2025-10-04",
+			SeverityVector: "*emphasis*",
 		},
 	}
 

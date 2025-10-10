@@ -18,12 +18,14 @@ func TestWriter_WriteMarkdown(t *testing.T) {
 
 	entries := []report.VulnerabilityEntry{
 		{
-			ID:          "GHSA-test-1234",
-			Ecosystem:   "npm",
-			Package:     "test-pkg",
-			Downloads:   1000,
-			GitHubStars: 100,
-			Severity:    "HIGH",
+			ID:        "GHSA-test-1234",
+			Ecosystem: "npm",
+			Package:   "test-pkg",
+			SeverityBaseScore: func() *float64 {
+				val := 7.5
+				return &val
+			}(),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
 		},
 	}
 
@@ -57,12 +59,14 @@ func TestWriter_WriteCSV(t *testing.T) {
 
 	entries := []report.VulnerabilityEntry{
 		{
-			ID:          "GHSA-test-1234",
-			Ecosystem:   "npm",
-			Package:     "test-pkg",
-			Downloads:   1000,
-			GitHubStars: 100,
-			Severity:    "HIGH",
+			ID:        "GHSA-test-1234",
+			Ecosystem: "npm",
+			Package:   "test-pkg",
+			SeverityBaseScore: func() *float64 {
+				val := 7.5
+				return &val
+			}(),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
 		},
 	}
 
@@ -85,12 +89,14 @@ func TestWriter_WriteJSONL(t *testing.T) {
 
 	entries := []report.VulnerabilityEntry{
 		{
-			ID:          "GHSA-test-1234",
-			Ecosystem:   "npm",
-			Package:     "test-pkg",
-			Downloads:   1000,
-			GitHubStars: 100,
-			Severity:    "HIGH",
+			ID:        "GHSA-test-1234",
+			Ecosystem: "npm",
+			Package:   "test-pkg",
+			SeverityBaseScore: func() *float64 {
+				val := 7.5
+				return &val
+			}(),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
 		},
 	}
 
@@ -113,12 +119,14 @@ func TestWriter_FilePermissions0600(t *testing.T) {
 
 	entries := []report.VulnerabilityEntry{
 		{
-			ID:          "GHSA-test-1234",
-			Ecosystem:   "npm",
-			Package:     "test-pkg",
-			Downloads:   1000,
-			GitHubStars: 100,
-			Severity:    "HIGH",
+			ID:        "GHSA-test-1234",
+			Ecosystem: "npm",
+			Package:   "test-pkg",
+			SeverityBaseScore: func() *float64 {
+				val := 7.5
+				return &val
+			}(),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
 		},
 	}
 

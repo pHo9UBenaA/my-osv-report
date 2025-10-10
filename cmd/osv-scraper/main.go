@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -235,27 +237,149 @@ type storeAdapter struct {
 }
 
 func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerability) error {
-	// Extract the highest severity score
-	severity := extractSeverity(vuln.Severity)
+	baseScore, vector := extractSeverityInfo(vuln.Severity)
+
+	var base sql.NullFloat64
+	if baseScore != nil {
+		base = sql.NullFloat64{Float64: *baseScore, Valid: true}
+	}
 
 	return a.s.SaveVulnerability(ctx, store.Vulnerability{
-		ID:        vuln.ID,
-		Modified:  vuln.Modified,
-		Published: vuln.Published,
-		Summary:   vuln.Summary,
-		Details:   vuln.Details,
-		Severity:  severity,
+		ID:                vuln.ID,
+		Modified:          vuln.Modified,
+		Published:         vuln.Published,
+		Summary:           vuln.Summary,
+		Details:           vuln.Details,
+		SeverityBaseScore: base,
+		SeverityVector:    vector,
 	})
 }
 
-// extractSeverity extracts the severity score from vulnerability severity data.
-// If multiple severities exist, returns the first one. Returns empty string if none.
-func extractSeverity(severities []osv.Severity) string {
+// extractSeverityInfo extracts severity vector and base score information from OSV severity data.
+// It returns the vector string (if available) and the computed base score for CVSS v3.x vectors.
+func extractSeverityInfo(severities []osv.Severity) (*float64, string) {
 	if len(severities) == 0 {
-		return ""
+		return nil, ""
 	}
-	// Return the first severity score (usually CVSS)
-	return severities[0].Score
+
+	vector := strings.TrimSpace(severities[0].Score)
+	if vector == "" {
+		return nil, ""
+	}
+
+	base, err := parseSeverityScore(vector)
+	if err != nil {
+		slog.Debug("unsupported severity vector", "vector", vector, "err", err)
+		return nil, vector
+	}
+
+	return &base, vector
+}
+
+// parseSeverityScore parses a severity score string and returns the numeric base score when possible.
+func parseSeverityScore(score string) (float64, error) {
+	if strings.HasPrefix(score, "CVSS:3.") {
+		return computeCVSS3BaseScore(score)
+	}
+
+	return strconv.ParseFloat(score, 64)
+}
+
+// computeCVSS3BaseScore calculates the CVSS v3.x base score from a vector string.
+func computeCVSS3BaseScore(vector string) (float64, error) {
+	parts := strings.Split(vector, "/")
+	if len(parts) < 2 {
+		return 0, fmt.Errorf("invalid CVSS vector")
+	}
+	if !strings.HasPrefix(parts[0], "CVSS:3.") {
+		return 0, fmt.Errorf("unsupported CVSS version")
+	}
+
+	metrics := make(map[string]string, len(parts)-1)
+	for _, part := range parts[1:] {
+		kv := strings.SplitN(part, ":", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		metrics[kv[0]] = kv[1]
+	}
+
+	required := []string{"AV", "AC", "PR", "UI", "S", "C", "I", "A"}
+	for _, key := range required {
+		if _, ok := metrics[key]; !ok {
+			return 0, fmt.Errorf("missing metric %s", key)
+		}
+	}
+
+	avWeights := map[string]float64{"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}
+	acWeights := map[string]float64{"L": 0.77, "H": 0.44}
+	uiWeights := map[string]float64{"N": 0.85, "R": 0.62}
+	ciaWeights := map[string]float64{"N": 0.0, "L": 0.22, "H": 0.56}
+
+	scopeChanged := metrics["S"] == "C"
+	prWeightsUnchanged := map[string]float64{"N": 0.85, "L": 0.62, "H": 0.27}
+	prWeightsChanged := map[string]float64{"N": 0.85, "L": 0.68, "H": 0.5}
+
+	av, ok := avWeights[metrics["AV"]]
+	if !ok {
+		return 0, fmt.Errorf("invalid AV metric")
+	}
+	ac, ok := acWeights[metrics["AC"]]
+	if !ok {
+		return 0, fmt.Errorf("invalid AC metric")
+	}
+	var pr float64
+	if scopeChanged {
+		var okPR bool
+		pr, okPR = prWeightsChanged[metrics["PR"]]
+		if !okPR {
+			return 0, fmt.Errorf("invalid PR metric")
+		}
+	} else {
+		var okPR bool
+		pr, okPR = prWeightsUnchanged[metrics["PR"]]
+		if !okPR {
+			return 0, fmt.Errorf("invalid PR metric")
+		}
+	}
+	ui, ok := uiWeights[metrics["UI"]]
+	if !ok {
+		return 0, fmt.Errorf("invalid UI metric")
+	}
+	conf, ok := ciaWeights[metrics["C"]]
+	if !ok {
+		return 0, fmt.Errorf("invalid C metric")
+	}
+	integ, ok := ciaWeights[metrics["I"]]
+	if !ok {
+		return 0, fmt.Errorf("invalid I metric")
+	}
+	avail, ok := ciaWeights[metrics["A"]]
+	if !ok {
+		return 0, fmt.Errorf("invalid A metric")
+	}
+
+	exploitability := 8.22 * av * ac * pr * ui
+	impactSubscore := 1 - (1-conf)*(1-integ)*(1-avail)
+	if impactSubscore <= 0 {
+		return 0, nil
+	}
+
+	var impact float64
+	if scopeChanged {
+		impact = 7.52*(impactSubscore-0.029) - 3.25*math.Pow(impactSubscore-0.02, 15)
+		impact = math.Max(impact, 0)
+		base := roundUp1Decimal(math.Min(1.08*(impact+exploitability), 10))
+		return base, nil
+	}
+
+	impact = 6.42 * impactSubscore
+	base := roundUp1Decimal(math.Min(impact+exploitability, 10))
+	return base, nil
+}
+
+func roundUp1Decimal(val float64) float64 {
+	return math.Ceil(val*10) / 10
 }
 
 func resolveReportOutputPath(base string, now time.Time) string {
@@ -304,7 +428,7 @@ func generateReport(ctx context.Context, st *store.Store) error {
 		}
 	} else {
 		// Normal mode: fetch all vulnerabilities
-		entries, err = st.GetVulnerabilitiesWithMetrics(ctx, *reportEcosystem)
+		entries, err = st.GetVulnerabilitiesForReport(ctx, *reportEcosystem)
 		if err != nil {
 			return fmt.Errorf("get vulnerabilities: %w", err)
 		}
@@ -320,15 +444,19 @@ func generateReport(ctx context.Context, st *store.Store) error {
 	// Convert to report entries
 	reportEntries := make([]report.VulnerabilityEntry, len(entries))
 	for i, e := range entries {
+		var basePtr *float64
+		if e.SeverityBaseScore.Valid {
+			value := e.SeverityBaseScore.Float64
+			basePtr = &value
+		}
 		reportEntries[i] = report.VulnerabilityEntry{
-			ID:          e.ID,
-			Ecosystem:   e.Ecosystem,
-			Package:     e.Package,
-			Downloads:   e.Downloads,
-			GitHubStars: e.GitHubStars,
-			Published:   e.Published,
-			Modified:    e.Modified,
-			Severity:    e.Severity,
+			ID:                e.ID,
+			Ecosystem:         e.Ecosystem,
+			Package:           e.Package,
+			Published:         e.Published,
+			Modified:          e.Modified,
+			SeverityBaseScore: basePtr,
+			SeverityVector:    e.SeverityVector,
 		}
 	}
 
@@ -357,7 +485,7 @@ func generateReport(ctx context.Context, st *store.Store) error {
 	// If differential mode, save snapshot of all current vulnerabilities
 	if *reportDiff {
 		// Fetch ALL current vulnerabilities to save as snapshot
-		allEntries, err := st.GetVulnerabilitiesWithMetrics(ctx, *reportEcosystem)
+		allEntries, err := st.GetVulnerabilitiesForReport(ctx, *reportEcosystem)
 		if err != nil {
 			return fmt.Errorf("get all vulnerabilities for snapshot: %w", err)
 		}

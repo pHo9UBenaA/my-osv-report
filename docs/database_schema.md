@@ -10,7 +10,8 @@ CREATE TABLE vulnerability (
     published TEXT, -- Publication time (RFC3339 format)
     summary TEXT, -- Vulnerability summary
     details TEXT, -- Detailed description
-    severity TEXT, -- Severity score (e.g., CVSS score)
+    severity_base_score REAL, -- CVSS base score rounded to one decimal
+    severity_vector TEXT -- CVSS vector string
 );
 ```
 
@@ -24,20 +25,6 @@ CREATE TABLE affected (
     package TEXT NOT NULL, -- Package name
     PRIMARY KEY (vuln_id, ecosystem, package),
     FOREIGN KEY (vuln_id) REFERENCES vulnerability(id)
-);
-```
-
-### package_metrics
-Stores package popularity metrics
-
-```sql
-CREATE TABLE package_metrics (
-    ecosystem TEXT NOT NULL, -- Ecosystem name
-    package TEXT NOT NULL, -- Package name
-    downloads INTEGER, -- Download count (ecosystem-specific)
-    github_stars INTEGER, -- GitHub stars (if applicable)
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (ecosystem, package)
 );
 ```
 
@@ -71,7 +58,8 @@ CREATE TABLE reported_snapshot (
     package TEXT NOT NULL, -- Package name
     published TEXT, -- Publication time
     modified TEXT, -- Last modified time
-    severity TEXT, -- Severity score
+    severity_base_score REAL, -- CVSS base score (nullable)
+    severity_vector TEXT, -- CVSS vector string
     PRIMARY KEY (id, ecosystem, package)
 );
 ```
@@ -82,7 +70,6 @@ CREATE TABLE reported_snapshot (
 
 - `vulnerability(id)` - Primary key index
 - `affected(vuln_id, ecosystem, package)` - Composite primary key index
-- `package_metrics(ecosystem, package)` - Composite primary key index
 - `source_cursor(source)` - Primary key index
 - `tombstone(id)` - Primary key index
 - `reported_snapshot(id, ecosystem, package)` - Composite primary key index

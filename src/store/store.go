@@ -12,12 +12,13 @@ import (
 
 // Vulnerability represents a vulnerability record in the database.
 type Vulnerability struct {
-	ID        string
-	Modified  time.Time
-	Published time.Time
-	Summary   string
-	Details   string
-	Severity  string
+	ID                string
+	Modified          time.Time
+	Published         time.Time
+	Summary           string
+	Details           string
+	SeverityBaseScore sql.NullFloat64
+	SeverityVector    string
 }
 
 // Affected represents an affected package in the database.
@@ -27,24 +28,15 @@ type Affected struct {
 	Package   string
 }
 
-// PackageMetrics represents download and popularity metrics for a package.
-type PackageMetrics struct {
-	Ecosystem   string
-	Package     string
-	Downloads   int
-	GitHubStars int
-}
-
 // VulnerabilityReportEntry represents a vulnerability with metadata for reporting.
 type VulnerabilityReportEntry struct {
-	ID          string
-	Ecosystem   string
-	Package     string
-	Downloads   int
-	GitHubStars int
-	Published   string
-	Modified    string
-	Severity    string
+	ID                string
+	Ecosystem         string
+	Package           string
+	Published         string
+	Modified          string
+	SeverityBaseScore sql.NullFloat64
+	SeverityVector    string
 }
 
 // Store manages database operations for the OSV scraper.
@@ -105,7 +97,8 @@ func (s *Store) initSchema(ctx context.Context) error {
 			published TEXT,
 			summary TEXT,
 			details TEXT,
-			severity TEXT
+			severity_base_score REAL,
+			severity_vector TEXT
 		);
 
 		CREATE TABLE IF NOT EXISTS tombstone (
@@ -121,22 +114,14 @@ func (s *Store) initSchema(ctx context.Context) error {
 			PRIMARY KEY (vuln_id, ecosystem, package)
 		);
 
-		CREATE TABLE IF NOT EXISTS package_metrics (
-			ecosystem TEXT NOT NULL,
-			package TEXT NOT NULL,
-			downloads INTEGER,
-			github_stars INTEGER,
-			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (ecosystem, package)
-		);
-
 		CREATE TABLE IF NOT EXISTS reported_snapshot (
 			id TEXT NOT NULL,
 			ecosystem TEXT NOT NULL,
 			package TEXT NOT NULL,
 			published TEXT,
 			modified TEXT,
-			severity TEXT,
+			severity_base_score REAL,
+			severity_vector TEXT,
 			PRIMARY KEY (id, ecosystem, package)
 		);
 
@@ -151,7 +136,11 @@ func (s *Store) initSchema(ctx context.Context) error {
 	// Migrate existing tables: add published and severity columns if they don't exist
 	migrations := []string{
 		"ALTER TABLE vulnerability ADD COLUMN published TEXT",
-		"ALTER TABLE vulnerability ADD COLUMN severity TEXT",
+		"ALTER TABLE vulnerability ADD COLUMN severity_base_score REAL",
+		"ALTER TABLE vulnerability ADD COLUMN severity_vector TEXT",
+		"ALTER TABLE reported_snapshot ADD COLUMN severity_base_score REAL",
+		"ALTER TABLE reported_snapshot ADD COLUMN severity_vector TEXT",
+		"DROP TABLE IF EXISTS package_metrics",
 	}
 	for _, migration := range migrations {
 		_, err = s.db.ExecContext(ctx, migration)
@@ -159,6 +148,18 @@ func (s *Store) initSchema(ctx context.Context) error {
 		if err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			return fmt.Errorf("run migration: %w", err)
 		}
+	}
+
+	// Backfill severity_vector from legacy severity column if present.
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE vulnerability
+		SET severity_vector = severity
+		WHERE (severity_vector IS NULL OR severity_vector = '')
+		  AND severity IS NOT NULL
+		  AND severity != ''
+	`)
+	if err != nil && !strings.Contains(err.Error(), "no such column: severity") {
+		return fmt.Errorf("backfill severity vector: %w", err)
 	}
 
 	return nil
@@ -210,16 +211,28 @@ func (s *Store) SaveVulnerability(ctx context.Context, v Vulnerability) error {
 	}
 
 	query := `
-		INSERT INTO vulnerability (id, modified, published, summary, details, severity)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO vulnerability (id, modified, published, summary, details, severity_base_score, severity_vector)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			modified = excluded.modified,
 			published = excluded.published,
 			summary = excluded.summary,
 			details = excluded.details,
-			severity = excluded.severity
+			severity_base_score = excluded.severity_base_score,
+			severity_vector = excluded.severity_vector
 	`
-	_, err := s.db.ExecContext(ctx, query, v.ID, v.Modified.Format(time.RFC3339), publishedStr, v.Summary, v.Details, v.Severity)
+
+	var base interface{}
+	if v.SeverityBaseScore.Valid {
+		base = v.SeverityBaseScore.Float64
+	}
+
+	var vector interface{}
+	if v.SeverityVector != "" {
+		vector = v.SeverityVector
+	}
+
+	_, err := s.db.ExecContext(ctx, query, v.ID, v.Modified.Format(time.RFC3339), publishedStr, v.Summary, v.Details, base, vector)
 	if err != nil {
 		return fmt.Errorf("save vulnerability: %w", err)
 	}
@@ -254,39 +267,20 @@ func (s *Store) SaveTombstone(ctx context.Context, id string) error {
 	return nil
 }
 
-// SavePackageMetrics saves package download and popularity metrics.
-func (s *Store) SavePackageMetrics(ctx context.Context, m PackageMetrics) error {
-	query := `
-		INSERT INTO package_metrics (ecosystem, package, downloads, github_stars, updated_at)
-		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-		ON CONFLICT(ecosystem, package) DO UPDATE SET
-			downloads = excluded.downloads,
-			github_stars = excluded.github_stars,
-			updated_at = CURRENT_TIMESTAMP
-	`
-	_, err := s.db.ExecContext(ctx, query, m.Ecosystem, m.Package, m.Downloads, m.GitHubStars)
-	if err != nil {
-		return fmt.Errorf("save package metrics: %w", err)
-	}
-	return nil
-}
-
-// GetVulnerabilitiesWithMetrics retrieves vulnerabilities with metrics for reporting.
+// GetVulnerabilitiesForReport retrieves vulnerabilities for reporting.
 // If ecosystem is empty, returns all vulnerabilities. Otherwise, filters by ecosystem.
-func (s *Store) GetVulnerabilitiesWithMetrics(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
+func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
 	query := `
 		SELECT
 			v.id,
 			a.ecosystem,
 			a.package,
-			COALESCE(m.downloads, 0) as downloads,
-			COALESCE(m.github_stars, 0) as github_stars,
 			COALESCE(v.published, '') as published,
 			v.modified,
-			COALESCE(v.severity, '') as severity
+			v.severity_base_score,
+			COALESCE(v.severity_vector, '') as severity_vector
 		FROM vulnerability v
 		INNER JOIN affected a ON v.id = a.vuln_id
-		LEFT JOIN package_metrics m ON a.ecosystem = m.ecosystem AND a.package = m.package
 	`
 
 	args := []interface{}{}
@@ -306,7 +300,7 @@ func (s *Store) GetVulnerabilitiesWithMetrics(ctx context.Context, ecosystem str
 	var entries []VulnerabilityReportEntry
 	for rows.Next() {
 		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Downloads, &e.GitHubStars, &e.Published, &e.Modified, &e.Severity); err != nil {
+		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
 			return nil, fmt.Errorf("scan row: %w", err)
 		}
 		entries = append(entries, e)
@@ -360,19 +354,18 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 			v.id,
 			a.ecosystem,
 			a.package,
-			COALESCE(m.downloads, 0) as downloads,
-			COALESCE(m.github_stars, 0) as github_stars,
 			COALESCE(v.published, '') as published,
 			v.modified,
-			COALESCE(v.severity, '') as severity
+			v.severity_base_score,
+			COALESCE(v.severity_vector, '') as severity_vector
 		FROM vulnerability v
 		INNER JOIN affected a ON v.id = a.vuln_id
-		LEFT JOIN package_metrics m ON a.ecosystem = m.ecosystem AND a.package = m.package
 		LEFT JOIN reported_snapshot r ON v.id = r.id AND a.ecosystem = r.ecosystem AND a.package = r.package
 		WHERE (
 			r.id IS NULL
 			OR r.modified != v.modified
-			OR COALESCE(r.severity, '') != COALESCE(v.severity, '')
+			OR COALESCE(r.severity_base_score, -1) != COALESCE(v.severity_base_score, -1)
+			OR COALESCE(r.severity_vector, '') != COALESCE(v.severity_vector, '')
 		)
 	`
 
@@ -393,7 +386,7 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 	var entries []VulnerabilityReportEntry
 	for rows.Next() {
 		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Downloads, &e.GitHubStars, &e.Published, &e.Modified, &e.Severity); err != nil {
+		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
 			return nil, fmt.Errorf("scan row: %w", err)
 		}
 		entries = append(entries, e)
@@ -422,8 +415,8 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []VulnerabilityR
 
 	// Insert new snapshot entries
 	stmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO reported_snapshot (id, ecosystem, package, published, modified, severity)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO reported_snapshot (id, ecosystem, package, published, modified, severity_base_score, severity_vector)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare insert: %w", err)
@@ -431,7 +424,11 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []VulnerabilityR
 	defer stmt.Close()
 
 	for _, e := range entries {
-		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, e.Severity)
+		var base interface{}
+		if e.SeverityBaseScore.Valid {
+			base = e.SeverityBaseScore.Float64
+		}
+		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, base, e.SeverityVector)
 		if err != nil {
 			return fmt.Errorf("insert snapshot entry: %w", err)
 		}

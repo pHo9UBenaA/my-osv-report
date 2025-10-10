@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -31,12 +32,13 @@ func TestGenerateReport_UsesTimestampedFilename(t *testing.T) {
 	defer st.Close()
 
 	vuln := store.Vulnerability{
-		ID:        "GHSA-test-1234",
-		Modified:  fixedTime,
-		Published: fixedTime,
-		Summary:   "test summary",
-		Details:   "test details",
-		Severity:  "HIGH",
+		ID:                "GHSA-test-1234",
+		Modified:          fixedTime,
+		Published:         fixedTime,
+		Summary:           "test summary",
+		Details:           "test details",
+		SeverityBaseScore: sql.NullFloat64{Float64: 9.8, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 	}
 
 	if err := st.SaveVulnerability(ctx, vuln); err != nil {
@@ -102,10 +104,11 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 
 	// Setup: Create initial vulnerabilities
 	vuln1 := store.Vulnerability{
-		ID:        "GHSA-initial-1",
-		Modified:  time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
-		Published: time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
-		Severity:  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+		ID:                "GHSA-initial-1",
+		Modified:          time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
+		Published:         time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
+		SeverityBaseScore: sql.NullFloat64{Float64: 9.8, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 	}
 	if err := st.SaveVulnerability(ctx, vuln1); err != nil {
 		t.Fatalf("SaveVulnerability(vuln1) error = %v", err)
@@ -115,10 +118,11 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 	}
 
 	vuln2 := store.Vulnerability{
-		ID:        "GHSA-initial-2",
-		Modified:  time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
-		Published: time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
-		Severity:  "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N",
+		ID:                "GHSA-initial-2",
+		Modified:          time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
+		Published:         time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
+		SeverityBaseScore: sql.NullFloat64{Float64: 6.4, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N",
 	}
 	if err := st.SaveVulnerability(ctx, vuln2); err != nil {
 		t.Fatalf("SaveVulnerability(vuln2) error = %v", err)
@@ -150,9 +154,9 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 	}
 
 	// Verify: Snapshot should contain ALL current vulnerabilities
-	allEntries, err := st.GetVulnerabilitiesWithMetrics(ctx, "")
+	allEntries, err := st.GetVulnerabilitiesForReport(ctx, "")
 	if err != nil {
-		t.Fatalf("GetVulnerabilitiesWithMetrics() error = %v", err)
+		t.Fatalf("GetVulnerabilitiesForReport() error = %v", err)
 	}
 	if len(allEntries) != 2 {
 		t.Fatalf("Expected 2 vulnerabilities in DB, got %d", len(allEntries))
@@ -169,10 +173,11 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 
 	// Add new vulnerability
 	vuln3 := store.Vulnerability{
-		ID:        "GHSA-new-3",
-		Modified:  time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
-		Published: time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
-		Severity:  "CVSS:3.1/AV:L/AC:L/PR:H/UI:N/S:U/C:N/I:N/A:H",
+		ID:                "GHSA-new-3",
+		Modified:          time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
+		Published:         time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
+		SeverityBaseScore: sql.NullFloat64{Float64: 5.7, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:L/AC:L/PR:H/UI:N/S:U/C:N/I:N/A:H",
 	}
 	if err := st.SaveVulnerability(ctx, vuln3); err != nil {
 		t.Fatalf("SaveVulnerability(vuln3) error = %v", err)
@@ -197,9 +202,9 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 	}
 
 	// Verify: Snapshot should now contain all 3 vulnerabilities
-	allEntriesAfter, err := st.GetVulnerabilitiesWithMetrics(ctx, "")
+	allEntriesAfter, err := st.GetVulnerabilitiesForReport(ctx, "")
 	if err != nil {
-		t.Fatalf("GetVulnerabilitiesWithMetrics() after second run error = %v", err)
+		t.Fatalf("GetVulnerabilitiesForReport() after second run error = %v", err)
 	}
 	if len(allEntriesAfter) != 3 {
 		t.Fatalf("Expected 3 vulnerabilities in DB after second run, got %d", len(allEntriesAfter))
@@ -219,10 +224,11 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 
 	// Setup: Create vulnerabilities in different ecosystems
 	npmVuln := store.Vulnerability{
-		ID:        "GHSA-npm-1",
-		Modified:  time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
-		Published: time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
-		Severity:  "HIGH",
+		ID:                "GHSA-npm-1",
+		Modified:          time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
+		Published:         time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
+		SeverityBaseScore: sql.NullFloat64{Float64: 9.0, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
 	}
 	if err := st.SaveVulnerability(ctx, npmVuln); err != nil {
 		t.Fatalf("SaveVulnerability(npmVuln) error = %v", err)
@@ -232,10 +238,11 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 	}
 
 	pypiVuln := store.Vulnerability{
-		ID:        "GHSA-pypi-1",
-		Modified:  time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
-		Published: time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
-		Severity:  "MEDIUM",
+		ID:                "GHSA-pypi-1",
+		Modified:          time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
+		Published:         time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC),
+		SeverityBaseScore: sql.NullFloat64{Float64: 5.5, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N",
 	}
 	if err := st.SaveVulnerability(ctx, pypiVuln); err != nil {
 		t.Fatalf("SaveVulnerability(pypiVuln) error = %v", err)
@@ -286,10 +293,11 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 
 	// Add new npm vulnerability
 	newNpmVuln := store.Vulnerability{
-		ID:        "GHSA-npm-2",
-		Modified:  time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
-		Published: time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
-		Severity:  "LOW",
+		ID:                "GHSA-npm-2",
+		Modified:          time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
+		Published:         time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC),
+		SeverityBaseScore: sql.NullFloat64{Float64: 3.9, Valid: true},
+		SeverityVector:    "CVSS:3.1/AV:L/AC:H/PR:H/UI:N/S:U/C:L/I:N/A:N",
 	}
 	if err := st.SaveVulnerability(ctx, newNpmVuln); err != nil {
 		t.Fatalf("SaveVulnerability(newNpmVuln) error = %v", err)

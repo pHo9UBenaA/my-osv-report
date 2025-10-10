@@ -25,20 +25,6 @@ func (f *JSONLFormatter) Format(entries []VulnerabilityEntry) string {
 			"source":    e.ID,
 		}
 
-		// Handle downloads
-		if e.Downloads == 0 {
-			obj["downloads"] = "NA"
-		} else {
-			obj["downloads"] = e.Downloads
-		}
-
-		// Handle GitHub stars
-		if e.GitHubStars == 0 {
-			obj["github_stars"] = "NA"
-		} else {
-			obj["github_stars"] = e.GitHubStars
-		}
-
 		// Handle published
 		if e.Published == "" {
 			obj["published"] = "NA"
@@ -53,11 +39,18 @@ func (f *JSONLFormatter) Format(entries []VulnerabilityEntry) string {
 			obj["modified"] = e.Modified
 		}
 
-		// Handle severity
-		if e.Severity == "" {
-			obj["severity"] = "NA"
+		// Handle severity base score
+		if e.SeverityBaseScore == nil {
+			obj["severity_base_score"] = "NA"
 		} else {
-			obj["severity"] = e.Severity
+			obj["severity_base_score"] = formatBaseScore(e.SeverityBaseScore)
+		}
+
+		// Handle severity vector
+		if e.SeverityVector == "" {
+			obj["severity_vector"] = "NA"
+		} else {
+			obj["severity_vector"] = e.SeverityVector
 		}
 
 		data, err := json.Marshal(obj)

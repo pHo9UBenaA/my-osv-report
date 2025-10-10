@@ -18,18 +18,18 @@ type storeAdapter struct {
 }
 
 func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerability) error {
-	severity := ""
+	vector := ""
 	if len(vuln.Severity) > 0 {
-		severity = vuln.Severity[0].Score
+		vector = vuln.Severity[0].Score
 	}
 
 	return a.s.SaveVulnerability(ctx, store.Vulnerability{
-		ID:        vuln.ID,
-		Modified:  vuln.Modified,
-		Published: vuln.Published,
-		Summary:   vuln.Summary,
-		Details:   vuln.Details,
-		Severity:  severity,
+		ID:             vuln.ID,
+		Modified:       vuln.Modified,
+		Published:      vuln.Published,
+		Summary:        vuln.Summary,
+		Details:        vuln.Details,
+		SeverityVector: vector,
 	})
 }
 

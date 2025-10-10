@@ -22,28 +22,26 @@ func (f *CSVFormatter) Format(entries []VulnerabilityEntry) string {
 	w := csv.NewWriter(&buf)
 
 	// Write header
-	header := []string{"ecosystem", "package", "source", "downloads", "github_stars", "published", "modified", "severity"}
+	header := []string{"ecosystem", "package", "source", "published", "modified", "severity_base_score", "severity_vector"}
 	if err := w.Write(header); err != nil {
 		return ""
 	}
 
 	// Write entries
 	for _, e := range entries {
-		downloads := formatInt(e.Downloads)
-		stars := formatInt(e.GitHubStars)
 		published := formatString(e.Published)
 		modified := formatString(e.Modified)
-		severity := formatString(e.Severity)
+		severityBase := formatBaseScore(e.SeverityBaseScore)
+		severityVector := formatString(e.SeverityVector)
 
 		record := []string{
 			escapeCSVInjection(e.Ecosystem),
 			escapeCSVInjection(e.Package),
 			escapeCSVInjection(e.ID),
-			escapeCSVInjection(downloads),
-			escapeCSVInjection(stars),
 			escapeCSVInjection(published),
 			escapeCSVInjection(modified),
-			escapeCSVInjection(severity),
+			escapeCSVInjection(severityBase),
+			escapeCSVInjection(severityVector),
 		}
 		if err := w.Write(record); err != nil {
 			return ""
