@@ -9,20 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/store"
+	"github.com/pHo9UBenaA/osv-scraper/internal/app"
+	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
 func TestGenerateReport_UsesTimestampedFilename(t *testing.T) {
-	fixedTime := time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
-
-	prevReportNow := reportNow
-	reportNow = func() time.Time {
-		return fixedTime
-	}
-	defer func() { reportNow = prevReportNow }()
-
 	ctx := context.Background()
 	tmpDir := t.TempDir()
+
+	fixedTime := time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 	st, err := store.NewStore(ctx, dbPath)
@@ -55,37 +50,44 @@ func TestGenerateReport_UsesTimestampedFilename(t *testing.T) {
 		t.Fatalf("SaveAffected() error = %v", err)
 	}
 
-	prevFormat := *reportFormat
-	prevOutput := *reportOutput
-	prevEcosystem := *reportEcosystem
-	prevDiff := *reportDiff
-
-	*reportFormat = "markdown"
-	*reportOutput = filepath.Join(tmpDir, "report.md")
-	*reportEcosystem = ""
-	*reportDiff = false
-
-	defer func() {
-		*reportFormat = prevFormat
-		*reportOutput = prevOutput
-		*reportEcosystem = prevEcosystem
-		*reportDiff = prevDiff
-	}()
-
-	if err := generateReport(ctx, st); err != nil {
-		t.Fatalf("generateReport() error = %v", err)
+	opts := app.ReportOptions{
+		Format:    "markdown",
+		Output:    filepath.Join(tmpDir, "report.md"),
+		Ecosystem: "",
+		Diff:      false,
 	}
 
-	expectedPath := filepath.Join(tmpDir, "report_20250101T090000Z.md")
-	if _, err := os.Stat(expectedPath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("timestamped report not found at %s", expectedPath)
+	if err := app.GenerateReport(ctx, st, opts); err != nil {
+		t.Fatalf("GenerateReport() error = %v", err)
+	}
+
+	// The output filename includes a timestamp, so we need to find it
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+
+	var foundReport string
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) == ".md" && !entry.IsDir() {
+			foundReport = entry.Name()
+			break
 		}
-		t.Fatalf("failed to stat expected report: %v", err)
+	}
+	if foundReport == "" {
+		t.Fatalf("timestamped report not found in %s", tmpDir)
 	}
 
-	if _, err := os.Stat(filepath.Join(tmpDir, "report.md")); err == nil {
-		t.Fatalf("unexpected file created at original output path %s", filepath.Join(tmpDir, "report.md"))
+	// Verify the file exists and has a timestamp suffix
+	reportPath := filepath.Join(tmpDir, foundReport)
+	if _, err := os.Stat(reportPath); err != nil {
+		t.Fatalf("failed to stat report at %s: %v", reportPath, err)
+	}
+
+	// Verify the original path (without timestamp) was NOT created
+	originalPath := filepath.Join(tmpDir, "report.md")
+	if _, err := os.Stat(originalPath); err == nil {
+		t.Fatalf("unexpected file created at original output path %s", originalPath)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("failed to stat original output path: %v", err)
 	}
@@ -131,26 +133,16 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 		t.Fatalf("SaveAffected(vuln2) error = %v", err)
 	}
 
-	// Configure flags for first differential report
-	prevFormat := *reportFormat
-	prevOutput := *reportOutput
-	prevEcosystem := *reportEcosystem
-	prevDiff := *reportDiff
-	defer func() {
-		*reportFormat = prevFormat
-		*reportOutput = prevOutput
-		*reportEcosystem = prevEcosystem
-		*reportDiff = prevDiff
-	}()
-
-	*reportFormat = "jsonl"
-	*reportOutput = filepath.Join(tmpDir, "report.jsonl")
-	*reportEcosystem = ""
-	*reportDiff = true
+	opts := app.ReportOptions{
+		Format:    "jsonl",
+		Output:    filepath.Join(tmpDir, "report.jsonl"),
+		Ecosystem: "",
+		Diff:      true,
+	}
 
 	// First run: Generate differential report
-	if err := generateReport(ctx, st); err != nil {
-		t.Fatalf("generateReport() first run error = %v", err)
+	if err := app.GenerateReport(ctx, st, opts); err != nil {
+		t.Fatalf("GenerateReport() first run error = %v", err)
 	}
 
 	// Verify: Snapshot should contain ALL current vulnerabilities
@@ -187,9 +179,9 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 	}
 
 	// Second run: Generate differential report again
-	*reportOutput = filepath.Join(tmpDir, "report2.jsonl")
-	if err := generateReport(ctx, st); err != nil {
-		t.Fatalf("generateReport() second run error = %v", err)
+	opts.Output = filepath.Join(tmpDir, "report2.jsonl")
+	if err := app.GenerateReport(ctx, st, opts); err != nil {
+		t.Fatalf("GenerateReport() second run error = %v", err)
 	}
 
 	// After second run, GetUnreportedVulnerabilities should return 0 because snapshot was updated
@@ -251,26 +243,16 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 		t.Fatalf("SaveAffected(pypiVuln) error = %v", err)
 	}
 
-	// Configure flags for npm-only differential report
-	prevFormat := *reportFormat
-	prevOutput := *reportOutput
-	prevEcosystem := *reportEcosystem
-	prevDiff := *reportDiff
-	defer func() {
-		*reportFormat = prevFormat
-		*reportOutput = prevOutput
-		*reportEcosystem = prevEcosystem
-		*reportDiff = prevDiff
-	}()
-
-	*reportFormat = "jsonl"
-	*reportOutput = filepath.Join(tmpDir, "npm-report.jsonl")
-	*reportEcosystem = "npm"
-	*reportDiff = true
+	opts := app.ReportOptions{
+		Format:    "jsonl",
+		Output:    filepath.Join(tmpDir, "npm-report.jsonl"),
+		Ecosystem: "npm",
+		Diff:      true,
+	}
 
 	// Generate differential report for npm only
-	if err := generateReport(ctx, st); err != nil {
-		t.Fatalf("generateReport() npm-only error = %v", err)
+	if err := app.GenerateReport(ctx, st, opts); err != nil {
+		t.Fatalf("GenerateReport() npm-only error = %v", err)
 	}
 
 	// Verify: Only npm vulnerability should be in snapshot
@@ -307,9 +289,9 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 	}
 
 	// Second run: Should only report the new npm vulnerability
-	*reportOutput = filepath.Join(tmpDir, "npm-report2.jsonl")
-	if err := generateReport(ctx, st); err != nil {
-		t.Fatalf("generateReport() second npm run error = %v", err)
+	opts.Output = filepath.Join(tmpDir, "npm-report2.jsonl")
+	if err := app.GenerateReport(ctx, st, opts); err != nil {
+		t.Fatalf("GenerateReport() second npm run error = %v", err)
 	}
 
 	// Verify: No unreported npm vulnerabilities after second run

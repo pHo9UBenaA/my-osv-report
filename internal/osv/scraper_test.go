@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/osv"
-	"github.com/pHo9UBenaA/osv-scraper/src/store"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
+	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
 type storeAdapter struct {

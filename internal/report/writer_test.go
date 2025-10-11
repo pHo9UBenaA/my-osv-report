@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/report"
+	"github.com/pHo9UBenaA/osv-scraper/internal/report"
 )
 
 func TestWriter_WriteMarkdown(t *testing.T) {

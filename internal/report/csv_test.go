@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/report"
+	"github.com/pHo9UBenaA/osv-scraper/internal/report"
 )
 
 func TestCSVFormatter_Format(t *testing.T) {

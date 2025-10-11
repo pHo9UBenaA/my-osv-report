@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/config"
-	"github.com/pHo9UBenaA/osv-scraper/src/ecosystem"
+	"github.com/pHo9UBenaA/osv-scraper/internal/config"
+	"github.com/pHo9UBenaA/osv-scraper/internal/ecosystem"
 )
 
 func TestLoad(t *testing.T) {

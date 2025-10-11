@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/store"
+	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 	_ "modernc.org/sqlite"
 )
 

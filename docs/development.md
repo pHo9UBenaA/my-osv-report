@@ -6,17 +6,25 @@
 
 ```
 osv-scraper/
-├── cmd/osv-scraper/     # CLI entry point
-├── src/                 # Source code
-│   ├── config/          # Configuration management (environment variable loading)
+├── cmd/osv-scraper/     # CLI entry point (~70 lines)
+├── internal/            # Internal packages (Go standard)
+│   ├── app/             # Application logic (fetch, report, help)
+│   ├── config/          # Configuration management
 │   ├── ecosystem/       # Ecosystem definitions & URL mapper
 │   ├── fetcher/         # Sitemap fetcher & CSV fetcher
 │   ├── osv/             # OSV scraper, API client & parser
 │   ├── report/          # Report output (CSV, JSONL, Markdown)
-│   └── store/           # SQLite storage
+│   ├── severity/        # CVSS severity parsing
+│   └── store/           # SQLite storage (~470 lines)
 ├── docs/                # Documentation
 └── go.mod
 ```
+
+**Design Principles:**
+- Simple, direct code over unnecessary abstractions (YAGNI)
+- Go standard patterns (`internal/` for package privacy)
+- Single responsibility: each package has a clear purpose
+- Testability through straightforward code, not complex interfaces
 
 </details>
 

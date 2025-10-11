@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/fetcher"
+	"github.com/pHo9UBenaA/osv-scraper/internal/fetcher"
 )
 
 func TestNewSitemapFetcher(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/report"
+	"github.com/pHo9UBenaA/osv-scraper/internal/report"
 )
 
 func TestJSONLFormatter_Format(t *testing.T) {

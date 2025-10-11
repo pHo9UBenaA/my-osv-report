@@ -3,8 +3,8 @@ package severity_test
 import (
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/osv"
-	"github.com/pHo9UBenaA/osv-scraper/src/severity"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
+	"github.com/pHo9UBenaA/osv-scraper/internal/severity"
 )
 
 func TestParseVector_CVSS3(t *testing.T) {

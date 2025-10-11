@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/osv"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 )
 
 // SitemapURL represents a URL entry in the sitemap.

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/report"
+	"github.com/pHo9UBenaA/osv-scraper/internal/report"
 )
 
 func TestMarkdownFormatter_Format(t *testing.T) {

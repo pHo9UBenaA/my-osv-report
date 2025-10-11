@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/osv"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 )
 
 func TestGetVulnerability(t *testing.T) {

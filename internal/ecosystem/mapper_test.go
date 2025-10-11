@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/ecosystem"
+	"github.com/pHo9UBenaA/osv-scraper/internal/ecosystem"
 )
 
 func TestEcosystem_ModifiedCSVURL(t *testing.T) {

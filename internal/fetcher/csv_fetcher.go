@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/osv"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 )
 
 // CSVFetcher fetches CSV data from a URL.

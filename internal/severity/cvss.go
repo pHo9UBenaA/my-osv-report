@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pHo9UBenaA/osv-scraper/src/osv"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 )
 
 // ExtractFromOSV extracts severity vector information and optional base score from OSV severity data.
