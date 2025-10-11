@@ -8,8 +8,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// VulnerabilityStore defines the interface for storing vulnerability data.
-type VulnerabilityStore interface {
+// Store defines the minimal interface for storing vulnerability data.
+type Store interface {
 	SaveVulnerability(ctx context.Context, vuln *Vulnerability) error
 	SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error
 	SaveTombstone(ctx context.Context, id string) error
@@ -18,11 +18,11 @@ type VulnerabilityStore interface {
 // Scraper coordinates fetching and storing vulnerability data.
 type Scraper struct {
 	client *Client
-	store  VulnerabilityStore
+	store  Store
 }
 
 // NewScraper creates a new scraper instance.
-func NewScraper(client *Client, store VulnerabilityStore) *Scraper {
+func NewScraper(client *Client, store Store) *Scraper {
 	return &Scraper{
 		client: client,
 		store:  store,

@@ -8,16 +8,8 @@ import (
 	"unicode/utf8"
 )
 
-// CSVFormatter formats vulnerability entries as CSV.
-type CSVFormatter struct{}
-
-// NewCSVFormatter creates a new CSV formatter.
-func NewCSVFormatter() *CSVFormatter {
-	return &CSVFormatter{}
-}
-
-// Format generates CSV output from vulnerability entries.
-func (f *CSVFormatter) Format(entries []VulnerabilityEntry) string {
+// FormatCSV generates CSV output from vulnerability entries.
+func FormatCSV(entries []VulnerabilityEntry) string {
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
 

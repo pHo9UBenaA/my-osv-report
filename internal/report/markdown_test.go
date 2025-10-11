@@ -8,8 +8,6 @@ import (
 )
 
 func TestMarkdownFormatter_Format(t *testing.T) {
-	formatter := report.NewMarkdownFormatter()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-xxxx-yyyy-zzzz",
@@ -32,7 +30,7 @@ func TestMarkdownFormatter_Format(t *testing.T) {
 		},
 	}
 
-	result := formatter.Format(entries)
+	result := report.FormatMarkdown(entries)
 
 	// Check header
 	if !strings.Contains(result, "| Ecosystem | Package | Source | Published | Modified | Severity: Base Score | Severity: Vector String |") {
@@ -56,8 +54,6 @@ func TestMarkdownFormatter_Format(t *testing.T) {
 }
 
 func TestMarkdownFormatter_Format_EscapesSpecialCharacters(t *testing.T) {
-	formatter := report.NewMarkdownFormatter()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:             "GHSA-test-0001",
@@ -81,7 +77,7 @@ func TestMarkdownFormatter_Format_EscapesSpecialCharacters(t *testing.T) {
 		},
 	}
 
-	result := formatter.Format(entries)
+	result := report.FormatMarkdown(entries)
 
 	// Pipe characters should be escaped to prevent breaking table structure
 	if strings.Contains(result, "pkg-with-|pipe|chars") {

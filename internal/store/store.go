@@ -89,30 +89,18 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 }
 
 func (s *Store) initSchema(ctx context.Context) error {
-	if err := s.enableSQLitePragmas(ctx); err != nil {
-		return err
+	// Enable SQLite optimizations
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA busy_timeout=5000",
+	}
+	for _, pragma := range pragmas {
+		if _, err := s.db.ExecContext(ctx, pragma); err != nil {
+			return fmt.Errorf("execute pragma: %w", err)
+		}
 	}
 
-	if err := s.ensureSchema(ctx); err != nil {
-		return err
-	}
-
-	return s.runMigrations(ctx)
-}
-
-func (s *Store) enableSQLitePragmas(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
-		return fmt.Errorf("enable WAL mode: %w", err)
-	}
-
-	if _, err := s.db.ExecContext(ctx, "PRAGMA busy_timeout=5000"); err != nil {
-		return fmt.Errorf("set busy timeout: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Store) ensureSchema(ctx context.Context) error {
+	// Create schema
 	schema := `
 		CREATE TABLE IF NOT EXISTS source_cursor (
 			source TEXT PRIMARY KEY,
@@ -156,15 +144,11 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 		CREATE INDEX IF NOT EXISTS idx_affected_ecosystem ON affected(ecosystem);
 		CREATE INDEX IF NOT EXISTS idx_vulnerability_modified ON vulnerability(modified);
 	`
-
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("create schema: %w", err)
 	}
 
-	return nil
-}
-
-func (s *Store) runMigrations(ctx context.Context) error {
+	// Run migrations (for backward compatibility)
 	migrations := []string{
 		"ALTER TABLE vulnerability ADD COLUMN published TEXT",
 		"ALTER TABLE vulnerability ADD COLUMN severity_base_score REAL",
@@ -176,7 +160,6 @@ func (s *Store) runMigrations(ctx context.Context) error {
 		 WHERE (severity_vector IS NULL OR severity_vector = '') 
 		 AND severity IS NOT NULL AND severity != ''`,
 	}
-
 	for _, migration := range migrations {
 		_, err := s.db.ExecContext(ctx, migration)
 		if err != nil && !strings.Contains(err.Error(), "duplicate column") && !strings.Contains(err.Error(), "no such column") {
@@ -225,8 +208,13 @@ func (s *Store) GetCursor(ctx context.Context, source string) (time.Time, error)
 	return cursor, nil
 }
 
-// SaveVulnerability saves a vulnerability to the database.
+// SaveVulnerability is kept for backward compatibility.
 func (s *Store) SaveVulnerability(ctx context.Context, v Vulnerability) error {
+	return s.SaveVulnerabilityRecord(ctx, v)
+}
+
+// SaveVulnerabilityRecord saves a vulnerability record to the database.
+func (s *Store) SaveVulnerabilityRecord(ctx context.Context, v Vulnerability) error {
 	publishedStr := ""
 	if !v.Published.IsZero() {
 		publishedStr = v.Published.Format(timeFormat)

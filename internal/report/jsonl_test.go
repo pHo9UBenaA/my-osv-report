@@ -9,8 +9,6 @@ import (
 )
 
 func TestJSONLFormatter_Format(t *testing.T) {
-	formatter := report.NewJSONLFormatter()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-xxxx-yyyy-zzzz",
@@ -33,7 +31,7 @@ func TestJSONLFormatter_Format(t *testing.T) {
 		},
 	}
 
-	result := formatter.Format(entries)
+	result := report.FormatJSONL(entries)
 
 	lines := strings.Split(strings.TrimSpace(result), "\n")
 	if len(lines) != 2 {
@@ -78,8 +76,6 @@ func TestJSONLFormatter_Format(t *testing.T) {
 }
 
 func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T) {
-	formatter := report.NewJSONLFormatter()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:             "=cmd|'/c calc'!A1",
@@ -99,7 +95,7 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 		},
 	}
 
-	result := formatter.Format(entries)
+	result := report.FormatJSONL(entries)
 	lines := strings.Split(strings.TrimSpace(result), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines, got %d", len(lines))

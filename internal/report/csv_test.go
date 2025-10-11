@@ -9,8 +9,6 @@ import (
 )
 
 func TestCSVFormatter_Format(t *testing.T) {
-	formatter := report.NewCSVFormatter()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-xxxx-yyyy-zzzz",
@@ -33,7 +31,7 @@ func TestCSVFormatter_Format(t *testing.T) {
 		},
 	}
 
-	result := formatter.Format(entries)
+	result := report.FormatCSV(entries)
 
 	// Check header
 	if !strings.Contains(result, "ecosystem,package,source,published,modified,severity_base_score,severity_vector") {
@@ -52,8 +50,6 @@ func TestCSVFormatter_Format(t *testing.T) {
 }
 
 func TestCSVFormatter_FormulaInjectionPrevention(t *testing.T) {
-	formatter := report.NewCSVFormatter()
-
 	tests := []struct {
 		name     string
 		entry    report.VulnerabilityEntry
@@ -123,7 +119,7 @@ func TestCSVFormatter_FormulaInjectionPrevention(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatter.Format([]report.VulnerabilityEntry{tt.entry})
+			result := report.FormatCSV([]report.VulnerabilityEntry{tt.entry})
 
 			// Check that dangerous characters are not at the start of fields
 			// when interpreted as CSV (after header line)
@@ -159,8 +155,6 @@ func TestCSVFormatter_FormulaInjectionPrevention(t *testing.T) {
 }
 
 func TestCSVFormatter_FormulaInjectionPrevention_WithLeadingWhitespace(t *testing.T) {
-	formatter := report.NewCSVFormatter()
-
 	entry := report.VulnerabilityEntry{
 		ID:             "\n=INJECT",
 		Ecosystem:      " npm",
@@ -168,7 +162,7 @@ func TestCSVFormatter_FormulaInjectionPrevention_WithLeadingWhitespace(t *testin
 		SeverityVector: "\r@ALERT",
 	}
 
-	result := formatter.Format([]report.VulnerabilityEntry{entry})
+	result := report.FormatCSV([]report.VulnerabilityEntry{entry})
 
 	r := csv.NewReader(strings.NewReader(result))
 	records, err := r.ReadAll()

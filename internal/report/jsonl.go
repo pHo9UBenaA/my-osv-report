@@ -6,16 +6,8 @@ import (
 	"strings"
 )
 
-// JSONLFormatter formats vulnerability entries as JSON Lines.
-type JSONLFormatter struct{}
-
-// NewJSONLFormatter creates a new JSONL formatter.
-func NewJSONLFormatter() *JSONLFormatter {
-	return &JSONLFormatter{}
-}
-
-// Format generates JSONL output from vulnerability entries.
-func (f *JSONLFormatter) Format(entries []VulnerabilityEntry) string {
+// FormatJSONL converts vulnerability entries to a JSONL string.
+func FormatJSONL(entries []VulnerabilityEntry) string {
 	var sb strings.Builder
 
 	for _, e := range entries {

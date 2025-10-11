@@ -30,16 +30,8 @@ var markdownReplacer = strings.NewReplacer(
 	"\\", "\\\\", // Backslash itself
 )
 
-// MarkdownFormatter formats vulnerability entries as Markdown tables.
-type MarkdownFormatter struct{}
-
-// NewMarkdownFormatter creates a new Markdown formatter.
-func NewMarkdownFormatter() *MarkdownFormatter {
-	return &MarkdownFormatter{}
-}
-
-// Format generates a Markdown table from vulnerability entries.
-func (f *MarkdownFormatter) Format(entries []VulnerabilityEntry) string {
+// FormatMarkdown generates a Markdown table from vulnerability entries.
+func FormatMarkdown(entries []VulnerabilityEntry) string {
 	var sb strings.Builder
 
 	// Write header

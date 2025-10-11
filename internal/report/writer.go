@@ -22,38 +22,29 @@ func formatBaseScore(val *float64) string {
 	return fmt.Sprintf("%.1f", *val)
 }
 
-// Formatter formats vulnerability entries to a string representation.
-type Formatter interface {
-	Format(entries []VulnerabilityEntry) string
-}
-
-// Writer handles writing reports to files.
-type Writer struct{}
-
-// NewWriter creates a new report writer.
-func NewWriter() *Writer {
-	return &Writer{}
-}
-
-func (w *Writer) write(ctx context.Context, path string, entries []VulnerabilityEntry, formatter Formatter, formatName string) error {
-	content := formatter.Format(entries)
+// WriteMarkdown writes vulnerability entries to a Markdown file.
+func WriteMarkdown(ctx context.Context, path string, entries []VulnerabilityEntry) error {
+	content := FormatMarkdown(entries)
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-		return fmt.Errorf("write %s: %w", formatName, err)
+		return fmt.Errorf("write markdown: %w", err)
 	}
 	return nil
 }
 
-// WriteMarkdown writes vulnerability entries to a Markdown file.
-func (w *Writer) WriteMarkdown(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	return w.write(ctx, path, entries, NewMarkdownFormatter(), "markdown")
-}
-
 // WriteCSV writes vulnerability entries to a CSV file.
-func (w *Writer) WriteCSV(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	return w.write(ctx, path, entries, NewCSVFormatter(), "csv")
+func WriteCSV(ctx context.Context, path string, entries []VulnerabilityEntry) error {
+	content := FormatCSV(entries)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		return fmt.Errorf("write csv: %w", err)
+	}
+	return nil
 }
 
 // WriteJSONL writes vulnerability entries to a JSONL file.
-func (w *Writer) WriteJSONL(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	return w.write(ctx, path, entries, NewJSONLFormatter(), "jsonl")
+func WriteJSONL(ctx context.Context, path string, entries []VulnerabilityEntry) error {
+	content := FormatJSONL(entries)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		return fmt.Errorf("write jsonl: %w", err)
+	}
+	return nil
 }

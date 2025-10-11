@@ -48,15 +48,14 @@ func GenerateReport(ctx context.Context, st *store.Store, opts ReportOptions) er
 	}
 
 	reportEntries := convertToReportEntries(entries)
-	writer := report.NewWriter()
 
 	switch opts.Format {
 	case "markdown":
-		err = writer.WriteMarkdown(ctx, outputPath, reportEntries)
+		err = report.WriteMarkdown(ctx, outputPath, reportEntries)
 	case "csv":
-		err = writer.WriteCSV(ctx, outputPath, reportEntries)
+		err = report.WriteCSV(ctx, outputPath, reportEntries)
 	case "jsonl":
-		err = writer.WriteJSONL(ctx, outputPath, reportEntries)
+		err = report.WriteJSONL(ctx, outputPath, reportEntries)
 	default:
 		return fmt.Errorf("unknown report format: %s (supported: markdown, csv, jsonl)", opts.Format)
 	}
