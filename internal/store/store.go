@@ -97,15 +97,7 @@ func (s *Store) initSchema(ctx context.Context) error {
 		return err
 	}
 
-	if err := s.runMigrations(ctx); err != nil {
-		return err
-	}
-
-	if err := s.backfillSeverityVector(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return s.runMigrations(ctx)
 }
 
 func (s *Store) enableSQLitePragmas(ctx context.Context) error {
@@ -180,28 +172,16 @@ func (s *Store) runMigrations(ctx context.Context) error {
 		"ALTER TABLE reported_snapshot ADD COLUMN severity_base_score REAL",
 		"ALTER TABLE reported_snapshot ADD COLUMN severity_vector TEXT",
 		"DROP TABLE IF EXISTS package_metrics",
+		`UPDATE vulnerability SET severity_vector = severity 
+		 WHERE (severity_vector IS NULL OR severity_vector = '') 
+		 AND severity IS NOT NULL AND severity != ''`,
 	}
 
 	for _, migration := range migrations {
 		_, err := s.db.ExecContext(ctx, migration)
-		if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		if err != nil && !strings.Contains(err.Error(), "duplicate column") && !strings.Contains(err.Error(), "no such column") {
 			return fmt.Errorf("run migration: %w", err)
 		}
-	}
-
-	return nil
-}
-
-func (s *Store) backfillSeverityVector(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
-		UPDATE vulnerability
-		SET severity_vector = severity
-		WHERE (severity_vector IS NULL OR severity_vector = '')
-		  AND severity IS NOT NULL
-		  AND severity != ''
-	`)
-	if err != nil && !strings.Contains(err.Error(), "no such column: severity") {
-		return fmt.Errorf("backfill severity vector: %w", err)
 	}
 
 	return nil

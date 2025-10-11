@@ -66,12 +66,10 @@ func (s *Scraper) processEntry(ctx context.Context, entry Entry) error {
 		return fmt.Errorf("get vulnerability: %w", err)
 	}
 
-	// Save vulnerability
 	if err := s.store.SaveVulnerability(ctx, vuln); err != nil {
 		return fmt.Errorf("save vulnerability: %w", err)
 	}
 
-	// Save affected packages
 	for _, affected := range vuln.Affected {
 		if err := s.store.SaveAffected(ctx, vuln.ID, affected.Package.Ecosystem, affected.Package.Name); err != nil {
 			return fmt.Errorf("save affected: %w", err)

@@ -14,84 +14,29 @@ type Ecosystem string
 
 // Supported ecosystems.
 const (
-	AlmaLinux                  Ecosystem = "AlmaLinux"
-	Alpaquita                  Ecosystem = "Alpaquita"
-	Alpine                     Ecosystem = "Alpine"
-	Android                    Ecosystem = "Android"
-	BellSoftHardenedContainers Ecosystem = "BellSoft Hardened Containers"
-	Bitnami                    Ecosystem = "Bitnami"
-	Chainguard                 Ecosystem = "Chainguard"
-	CRAN                       Ecosystem = "CRAN"
-	CratesIO                   Ecosystem = "crates.io"
-	Debian                     Ecosystem = "Debian"
-	Echo                       Ecosystem = "Echo"
-	GHC                        Ecosystem = "GHC"
-	GIT                        Ecosystem = "GIT"
-	GitHubActions              Ecosystem = "GitHub Actions"
-	Go                         Ecosystem = "Go"
-	Hackage                    Ecosystem = "Hackage"
-	Hex                        Ecosystem = "Hex"
-	Linux                      Ecosystem = "Linux"
-	Mageia                     Ecosystem = "Mageia"
-	Maven                      Ecosystem = "Maven"
-	MinimOS                    Ecosystem = "MinimOS"
-	NPM                        Ecosystem = "npm"
-	NuGet                      Ecosystem = "NuGet"
-	OpenEuler                  Ecosystem = "openEuler"
-	OpenSUSE                   Ecosystem = "openSUSE"
-	OSSFuzz                    Ecosystem = "OSS-Fuzz"
-	Packagist                  Ecosystem = "Packagist"
-	Pub                        Ecosystem = "Pub"
-	PyPI                       Ecosystem = "PyPI"
-	RedHat                     Ecosystem = "Red Hat"
-	RockyLinux                 Ecosystem = "Rocky Linux"
-	RubyGems                   Ecosystem = "RubyGems"
-	SUSE                       Ecosystem = "SUSE"
-	SwiftURL                   Ecosystem = "SwiftURL"
-	Ubuntu                     Ecosystem = "Ubuntu"
-	Wolfi                      Ecosystem = "Wolfi"
+	NPM           Ecosystem = "npm"
+	PyPI          Ecosystem = "PyPI"
+	Go            Ecosystem = "Go"
+	GitHubActions Ecosystem = "GitHub Actions"
+	RubyGems      Ecosystem = "RubyGems"
+	RedHat        Ecosystem = "Red Hat"
+	Maven         Ecosystem = "Maven"
+	NuGet         Ecosystem = "NuGet"
+	OSSFuzz       Ecosystem = "OSS-Fuzz"
 )
 
 const baseURL = "https://osv-vulnerabilities.storage.googleapis.com"
 
-var validEcosystems = map[Ecosystem]bool{
-	AlmaLinux:                  true,
-	Alpaquita:                  true,
-	Alpine:                     true,
-	Android:                    true,
-	BellSoftHardenedContainers: true,
-	Bitnami:                    true,
-	Chainguard:                 true,
-	CRAN:                       true,
-	CratesIO:                   true,
-	Debian:                     true,
-	Echo:                       true,
-	GHC:                        true,
-	GIT:                        true,
-	GitHubActions:              true,
-	Go:                         true,
-	Hackage:                    true,
-	Hex:                        true,
-	Linux:                      true,
-	Mageia:                     true,
-	Maven:                      true,
-	MinimOS:                    true,
-	NPM:                        true,
-	NuGet:                      true,
-	OpenEuler:                  true,
-	OpenSUSE:                   true,
-	OSSFuzz:                    true,
-	Packagist:                  true,
-	Pub:                        true,
-	PyPI:                       true,
-	RedHat:                     true,
-	RockyLinux:                 true,
-	RubyGems:                   true,
-	SUSE:                       true,
-	SwiftURL:                   true,
-	Ubuntu:                     true,
-	Wolfi:                      true,
+// All supported ecosystems
+var supportedEcosystems = []string{
+	"AlmaLinux", "Alpaquita", "Alpine", "Android", "BellSoft Hardened Containers",
+	"Bitnami", "Chainguard", "CRAN", "crates.io", "Debian", "Echo", "GHC", "GIT",
+	"GitHub Actions", "Go", "Hackage", "Hex", "Linux", "Mageia", "Maven", "MinimOS",
+	"npm", "NuGet", "openEuler", "openSUSE", "OSS-Fuzz", "Packagist", "Pub", "PyPI",
+	"Red Hat", "Rocky Linux", "RubyGems", "SUSE", "SwiftURL", "Ubuntu", "Wolfi",
 }
+
+var validEcosystems = buildEcosystemMap()
 
 // ModifiedCSVURL returns the URL for the all.zip file of this ecosystem.
 func (e Ecosystem) ModifiedCSVURL() string {
@@ -116,6 +61,14 @@ func (e Ecosystem) Validate() error {
 		return ErrInvalidEcosystem
 	}
 	return nil
+}
+
+func buildEcosystemMap() map[Ecosystem]bool {
+	m := make(map[Ecosystem]bool, len(supportedEcosystems))
+	for _, name := range supportedEcosystems {
+		m[Ecosystem(name)] = true
+	}
+	return m
 }
 
 // ParseEcosystems parses a comma-separated string into a slice of Ecosystems.

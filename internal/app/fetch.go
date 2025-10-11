@@ -113,7 +113,7 @@ func processEcosystem(ctx context.Context, eco interface {
 }
 
 type storeAdapter struct {
-	s *store.Store
+	st *store.Store
 }
 
 func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerability) error {
@@ -127,7 +127,7 @@ func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerab
 		base = sql.NullFloat64{Float64: *baseScore, Valid: true}
 	}
 
-	return a.s.SaveVulnerability(ctx, store.Vulnerability{
+	return a.st.SaveVulnerability(ctx, store.Vulnerability{
 		ID:                vuln.ID,
 		Modified:          vuln.Modified,
 		Published:         vuln.Published,
@@ -139,7 +139,7 @@ func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerab
 }
 
 func (a *storeAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error {
-	return a.s.SaveAffected(ctx, store.Affected{
+	return a.st.SaveAffected(ctx, store.Affected{
 		VulnID:    vulnID,
 		Ecosystem: ecosystem,
 		Package:   pkg,
@@ -147,5 +147,5 @@ func (a *storeAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg 
 }
 
 func (a *storeAdapter) SaveTombstone(ctx context.Context, id string) error {
-	return a.s.SaveTombstone(ctx, id)
+	return a.st.SaveTombstone(ctx, id)
 }
