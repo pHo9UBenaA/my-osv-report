@@ -86,16 +86,9 @@ func resolveOutputPath(base string, now time.Time) string {
 	}
 
 	dir := filepath.Dir(base)
-	filename := filepath.Base(base)
-	ext := filepath.Ext(filename)
-	name := strings.TrimSuffix(filename, ext)
-	timestamp := now.Format("20060102T150405Z")
-
-	newName := fmt.Sprintf("%s_%s%s", name, timestamp, ext)
-	if dir == "." {
-		return filepath.Join(dir, newName)
-	}
-	return filepath.Join(dir, newName)
+	ext := filepath.Ext(base)
+	name := strings.TrimSuffix(filepath.Base(base), ext)
+	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", name, now.Format("20060102T150405Z"), ext))
 }
 
 func convertToReportEntries(entries []store.VulnerabilityReportEntry) []report.VulnerabilityEntry {

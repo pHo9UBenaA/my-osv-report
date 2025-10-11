@@ -36,8 +36,6 @@ var supportedEcosystems = []string{
 	"Red Hat", "Rocky Linux", "RubyGems", "SUSE", "SwiftURL", "Ubuntu", "Wolfi",
 }
 
-var validEcosystems = buildEcosystemMap()
-
 // ModifiedCSVURL returns the URL for the all.zip file of this ecosystem.
 func (e Ecosystem) ModifiedCSVURL() string {
 	escapedName := url.PathEscape(string(e))
@@ -57,18 +55,12 @@ func (e Ecosystem) String() string {
 
 // Validate checks if the ecosystem is valid.
 func (e Ecosystem) Validate() error {
-	if !validEcosystems[e] {
-		return ErrInvalidEcosystem
-	}
-	return nil
-}
-
-func buildEcosystemMap() map[Ecosystem]bool {
-	m := make(map[Ecosystem]bool, len(supportedEcosystems))
 	for _, name := range supportedEcosystems {
-		m[Ecosystem(name)] = true
+		if Ecosystem(name) == e {
+			return nil
+		}
 	}
-	return m
+	return ErrInvalidEcosystem
 }
 
 // ParseEcosystems parses a comma-separated string into a slice of Ecosystems.
