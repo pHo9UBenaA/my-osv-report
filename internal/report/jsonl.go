@@ -7,7 +7,7 @@ import (
 )
 
 // FormatJSONL converts vulnerability entries to a JSONL string.
-func FormatJSONL(entries []VulnerabilityEntry) string {
+func FormatJSONL(entries []VulnerabilityEntry) (string, error) {
 	var sb strings.Builder
 
 	for _, e := range entries {
@@ -23,13 +23,12 @@ func FormatJSONL(entries []VulnerabilityEntry) string {
 
 		data, err := json.Marshal(obj)
 		if err != nil {
-			// Should not happen with simple map
-			panic(fmt.Sprintf("marshal error: %v", err))
+			return "", fmt.Errorf("marshal json: %w", err)
 		}
 
 		sb.Write(data)
 		sb.WriteString("\n")
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }

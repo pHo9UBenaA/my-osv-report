@@ -1,7 +1,6 @@
 package report_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,9 +11,6 @@ import (
 func TestWriter_WriteMarkdown(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "report.md")
-
-	
-	ctx := context.Background()
 
 	entries := []report.VulnerabilityEntry{
 		{
@@ -29,7 +25,7 @@ func TestWriter_WriteMarkdown(t *testing.T) {
 		},
 	}
 
-	if err := report.WriteMarkdown(ctx, outputPath, entries); err != nil {
+	if err := report.WriteMarkdown(outputPath, entries); err != nil {
 		t.Fatalf("WriteMarkdown() error = %v", err)
 	}
 
@@ -54,9 +50,6 @@ func TestWriter_WriteCSV(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "report.csv")
 
-	
-	ctx := context.Background()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-test-1234",
@@ -70,7 +63,7 @@ func TestWriter_WriteCSV(t *testing.T) {
 		},
 	}
 
-	if err := report.WriteCSV(ctx, outputPath, entries); err != nil {
+	if err := report.WriteCSV(outputPath, entries); err != nil {
 		t.Fatalf("WriteCSV() error = %v", err)
 	}
 
@@ -84,9 +77,6 @@ func TestWriter_WriteJSONL(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "report.jsonl")
 
-	
-	ctx := context.Background()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-test-1234",
@@ -100,7 +90,7 @@ func TestWriter_WriteJSONL(t *testing.T) {
 		},
 	}
 
-	if err := report.WriteJSONL(ctx, outputPath, entries); err != nil {
+	if err := report.WriteJSONL(outputPath, entries); err != nil {
 		t.Fatalf("WriteJSONL() error = %v", err)
 	}
 
@@ -114,9 +104,6 @@ func TestWriter_FilePermissions0600(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "report-perm.csv")
 
-	
-	ctx := context.Background()
-
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-test-1234",
@@ -130,7 +117,7 @@ func TestWriter_FilePermissions0600(t *testing.T) {
 		},
 	}
 
-	if err := report.WriteCSV(ctx, outputPath, entries); err != nil {
+	if err := report.WriteCSV(outputPath, entries); err != nil {
 		t.Fatalf("WriteCSV() error = %v", err)
 	}
 

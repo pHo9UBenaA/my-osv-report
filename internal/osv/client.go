@@ -11,6 +11,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const defaultHTTPClientTimeout = 30 * time.Second
+
 // ErrNotFound is returned when a vulnerability is not found (404).
 var ErrNotFound = errors.New("not found")
 
@@ -129,7 +131,7 @@ func newClient(baseURL string, httpClient *http.Client, lim limiter, opts ...Cli
 	}
 
 	if c.httpClient == nil {
-		c.httpClient = &http.Client{Timeout: 30 * time.Second}
+		c.httpClient = &http.Client{Timeout: defaultHTTPClientTimeout}
 	}
 	if c.timeAfter == nil {
 		c.timeAfter = time.After
@@ -140,14 +142,14 @@ func newClient(baseURL string, httpClient *http.Client, lim limiter, opts ...Cli
 
 // NewClient creates a new OSV API client without rate limiting.
 func NewClient(baseURL string, opts ...ClientOption) *Client {
-	return newClient(baseURL, &http.Client{Timeout: 30 * time.Second}, nil, opts...)
+	return newClient(baseURL, &http.Client{Timeout: defaultHTTPClientTimeout}, nil, opts...)
 }
 
 // NewClientWithRateLimit creates a new OSV API client with rate limiting.
 // ratePerSecond specifies the maximum number of requests per second.
 func NewClientWithRateLimit(baseURL string, ratePerSecond float64, opts ...ClientOption) *Client {
 	lim := rate.NewLimiter(rate.Limit(ratePerSecond), 1)
-	return newClient(baseURL, &http.Client{Timeout: 30 * time.Second}, lim, opts...)
+	return newClient(baseURL, &http.Client{Timeout: defaultHTTPClientTimeout}, lim, opts...)
 }
 
 // NewClientWithOptions creates a new OSV API client with custom options.

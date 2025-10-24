@@ -64,6 +64,7 @@ func computeCVSS3BaseScore(vector string) (float64, error) {
 		}
 	}
 
+	// CVSS v3.x metric weights from the official CVSS specification
 	avWeights := map[string]float64{"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}
 	acWeights := map[string]float64{"L": 0.77, "H": 0.44}
 	uiWeights := map[string]float64{"N": 0.85, "R": 0.62}
@@ -112,6 +113,7 @@ func computeCVSS3BaseScore(vector string) (float64, error) {
 		return 0, fmt.Errorf("invalid A metric")
 	}
 
+	// CVSS v3.x base score calculation formulas from the specification
 	exploitability := 8.22 * av * ac * pr * ui
 	impactSubscore := 1 - (1-conf)*(1-integ)*(1-avail)
 	if impactSubscore <= 0 {
@@ -119,11 +121,14 @@ func computeCVSS3BaseScore(vector string) (float64, error) {
 	}
 
 	if scopeChanged {
+		// Scope changed formula: Impact = 7.52 × (ISS − 0.029) − 3.25 × (ISS − 0.02)^15
 		impact := 7.52*(impactSubscore-0.029) - 3.25*math.Pow(impactSubscore-0.02, 15)
 		impact = math.Max(impact, 0)
+		// BaseScore = Roundup(Minimum[(Impact + Exploitability), 10] × 1.08)
 		return roundUp1Decimal(math.Min(1.08*(impact+exploitability), 10)), nil
 	}
 
+	// Scope unchanged formula: Impact = 6.42 × ISS
 	impact := 6.42 * impactSubscore
 	return roundUp1Decimal(math.Min(impact+exploitability, 10)), nil
 }

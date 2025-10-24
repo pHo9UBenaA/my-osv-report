@@ -31,7 +31,10 @@ func TestJSONLFormatter_Format(t *testing.T) {
 		},
 	}
 
-	result := report.FormatJSONL(entries)
+	result, err := report.FormatJSONL(entries)
+	if err != nil {
+		t.Fatalf("FormatJSONL() error = %v", err)
+	}
 
 	lines := strings.Split(strings.TrimSpace(result), "\n")
 	if len(lines) != 2 {
@@ -95,7 +98,10 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 		},
 	}
 
-	result := report.FormatJSONL(entries)
+	result, err := report.FormatJSONL(entries)
+	if err != nil {
+		t.Fatalf("FormatJSONL() error = %v", err)
+	}
 	lines := strings.Split(strings.TrimSpace(result), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines, got %d", len(lines))

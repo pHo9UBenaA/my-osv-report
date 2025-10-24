@@ -45,7 +45,6 @@ func (s *Scraper) ProcessEntriesParallel(ctx context.Context, entries []Entry, m
 	sem := make(chan struct{}, maxConcurrency)
 
 	for _, entry := range entries {
-		entry := entry // capture loop variable
 		g.Go(func() error {
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore

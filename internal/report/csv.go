@@ -3,20 +3,21 @@ package report
 import (
 	"bytes"
 	"encoding/csv"
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
 // FormatCSV generates CSV output from vulnerability entries.
-func FormatCSV(entries []VulnerabilityEntry) string {
+func FormatCSV(entries []VulnerabilityEntry) (string, error) {
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
 
 	// Write header
 	header := []string{"ecosystem", "package", "source", "published", "modified", "severity_base_score", "severity_vector"}
 	if err := w.Write(header); err != nil {
-		return ""
+		return "", fmt.Errorf("write header: %w", err)
 	}
 
 	// Write entries
@@ -31,16 +32,16 @@ func FormatCSV(entries []VulnerabilityEntry) string {
 			escapeCSVInjection(formatString(e.SeverityVector)),
 		}
 		if err := w.Write(record); err != nil {
-			return ""
+			return "", fmt.Errorf("write record: %w", err)
 		}
 	}
 
 	w.Flush()
 	if err := w.Error(); err != nil {
-		return ""
+		return "", fmt.Errorf("flush csv: %w", err)
 	}
 
-	return buf.String()
+	return buf.String(), nil
 }
 
 // escapeCSVInjection prevents CSV formula injection by prefixing dangerous characters with a single quote.

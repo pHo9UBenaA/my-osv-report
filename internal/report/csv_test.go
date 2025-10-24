@@ -31,7 +31,10 @@ func TestCSVFormatter_Format(t *testing.T) {
 		},
 	}
 
-	result := report.FormatCSV(entries)
+	result, err := report.FormatCSV(entries)
+	if err != nil {
+		t.Fatalf("FormatCSV() error = %v", err)
+	}
 
 	// Check header
 	if !strings.Contains(result, "ecosystem,package,source,published,modified,severity_base_score,severity_vector") {
@@ -119,7 +122,10 @@ func TestCSVFormatter_FormulaInjectionPrevention(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := report.FormatCSV([]report.VulnerabilityEntry{tt.entry})
+			result, err := report.FormatCSV([]report.VulnerabilityEntry{tt.entry})
+			if err != nil {
+				t.Fatalf("FormatCSV() error = %v", err)
+			}
 
 			// Check that dangerous characters are not at the start of fields
 			// when interpreted as CSV (after header line)
@@ -162,7 +168,10 @@ func TestCSVFormatter_FormulaInjectionPrevention_WithLeadingWhitespace(t *testin
 		SeverityVector: "\r@ALERT",
 	}
 
-	result := report.FormatCSV([]report.VulnerabilityEntry{entry})
+	result, err := report.FormatCSV([]report.VulnerabilityEntry{entry})
+	if err != nil {
+		t.Fatalf("FormatCSV() error = %v", err)
+	}
 
 	r := csv.NewReader(strings.NewReader(result))
 	records, err := r.ReadAll()

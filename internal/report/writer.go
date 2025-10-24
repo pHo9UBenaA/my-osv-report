@@ -1,7 +1,6 @@
 package report
 
 import (
-	"context"
 	"fmt"
 	"os"
 )
@@ -23,7 +22,7 @@ func formatBaseScore(val *float64) string {
 }
 
 // WriteMarkdown writes vulnerability entries to a Markdown file.
-func WriteMarkdown(ctx context.Context, path string, entries []VulnerabilityEntry) error {
+func WriteMarkdown(path string, entries []VulnerabilityEntry) error {
 	content := FormatMarkdown(entries)
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write markdown: %w", err)
@@ -32,8 +31,11 @@ func WriteMarkdown(ctx context.Context, path string, entries []VulnerabilityEntr
 }
 
 // WriteCSV writes vulnerability entries to a CSV file.
-func WriteCSV(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	content := FormatCSV(entries)
+func WriteCSV(path string, entries []VulnerabilityEntry) error {
+	content, err := FormatCSV(entries)
+	if err != nil {
+		return fmt.Errorf("format csv: %w", err)
+	}
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write csv: %w", err)
 	}
@@ -41,8 +43,11 @@ func WriteCSV(ctx context.Context, path string, entries []VulnerabilityEntry) er
 }
 
 // WriteJSONL writes vulnerability entries to a JSONL file.
-func WriteJSONL(ctx context.Context, path string, entries []VulnerabilityEntry) error {
-	content := FormatJSONL(entries)
+func WriteJSONL(path string, entries []VulnerabilityEntry) error {
+	content, err := FormatJSONL(entries)
+	if err != nil {
+		return fmt.Errorf("format jsonl: %w", err)
+	}
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write jsonl: %w", err)
 	}
