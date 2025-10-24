@@ -5,42 +5,38 @@ import "fmt"
 // ShowHelp displays usage information.
 func ShowHelp() {
 	fmt.Print(`
-WARNING: This package is a PILOT VERSION and has NOT been reviewed by contributors.
-Use with caution in production environments.
+Work with the OSV vulnerability database from the command line.
 
-OSV Scraper - Vulnerability Database Tool
+USAGE
+  osv-scraper <command> [flags]
 
-USAGE:
-  osv-scraper [command] [options]
+CORE COMMANDS
+  fetch:        Fetch the latest vulnerability data from the OSV API
+  report:       Generate a report from the local vulnerability database
+  help:         Show this help message
 
-COMMANDS:
-  -fetch              Fetch latest vulnerability data from OSV API
-  -report             Generate report from local database
-  -help               Show this help message
+REPORT FLAGS
+  --format:                Report format: markdown, csv, jsonl (default: markdown)
+  --output-dir:            Report output directory (default: .)
+  --file-prefix:           Report filename prefix (default: report)
+  --ecosystem:             Filter report by ecosystem (empty = all)
+  --diff:                  Generate differential report (only new/changed vulnerabilities)
 
-FETCH OPTIONS:
-  Environment variables:
-    OSV_ECOSYSTEMS          Comma-separated list of ecosystems (npm,pypi,go,etc)
-    OSV_API_BASE_URL        OSV API base URL (default: https://api.osv.dev)
-    OSV_DB_PATH             Database path (default: ./osv.db)
-    OSV_DATA_RETENTION_DAYS Data retention period in days (default: 7)
+ENVIRONMENT VARIABLES
+  OSV_ECOSYSTEMS           Comma-separated ecosystems (e.g. npm,pypi,go)
+  OSV_API_BASE_URL         OSV API base URL (default: https://api.osv.dev)
+  OSV_DB_PATH              Path to the local database (default: ./osv.db)
+  OSV_DATA_RETENTION_DAYS  Data retention period in days (default: 7)
 
-REPORT OPTIONS:
-  -format <format>    Output format: markdown, csv, jsonl (default: markdown)
-  -output <file>      Output base file path (timestamp suffix appended; default: ./report.md)
-  -ecosystem <name>   Filter by ecosystem (optional)
-  -diff               Generate differential report (new/changed vulnerabilities only)
+EXAMPLES
+  $ OSV_ECOSYSTEMS=npm,pypi osv-scraper fetch
+  $ osv-scraper report --format markdown --output-dir . --file-prefix report
+  $ osv-scraper report --diff --format csv --ecosystem npm --output-dir ./reports --file-prefix npm-vuln
 
-EXAMPLES:
-  # Fetch vulnerability data
-  OSV_ECOSYSTEMS=npm,pypi osv-scraper -fetch
+LEARN MORE
+  Read the manual at https://github.com/pHo9UBenaA/osv-scraper/
 
-  # Generate markdown report (creates report_<timestamp>.md)
-  osv-scraper -report -format=markdown -output=report.md
-
-  # Generate differential CSV report for npm only
-  osv-scraper -report -diff -format=csv -ecosystem=npm -output=npm-diff.csv
-
-For more information, see: https://github.com/pHo9UBenaA/osv-scraper/
+NOTE
+  PILOT VERSION — not yet reviewed by contributors. Use with caution.
 `)
 }

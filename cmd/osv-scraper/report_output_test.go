@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,10 +50,11 @@ func TestGenerateReport_UsesTimestampedFilename(t *testing.T) {
 	}
 
 	opts := app.ReportOptions{
-		Format:    "markdown",
-		Output:    filepath.Join(tmpDir, "report.md"),
-		Ecosystem: "",
-		Diff:      false,
+		Format:     "markdown",
+		OutputDir:  tmpDir,
+		FilePrefix: "report",
+		Ecosystem:  "",
+		Diff:       false,
 	}
 
 	if err := app.GenerateReport(ctx, st, opts); err != nil {
@@ -84,12 +84,9 @@ func TestGenerateReport_UsesTimestampedFilename(t *testing.T) {
 		t.Fatalf("failed to stat report at %s: %v", reportPath, err)
 	}
 
-	// Verify the original path (without timestamp) was NOT created
-	originalPath := filepath.Join(tmpDir, "report.md")
-	if _, err := os.Stat(originalPath); err == nil {
-		t.Fatalf("unexpected file created at original output path %s", originalPath)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("failed to stat original output path: %v", err)
+	// Verify that the file has a timestamp in its name (not just "report.md")
+	if foundReport == "report.md" {
+		t.Fatalf("expected timestamped filename, got %s", foundReport)
 	}
 }
 
@@ -134,10 +131,11 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 	}
 
 	opts := app.ReportOptions{
-		Format:    "jsonl",
-		Output:    filepath.Join(tmpDir, "report.jsonl"),
-		Ecosystem: "",
-		Diff:      true,
+		Format:     "jsonl",
+		OutputDir:  tmpDir,
+		FilePrefix: "report",
+		Ecosystem:  "",
+		Diff:       true,
 	}
 
 	// First run: Generate differential report
@@ -179,7 +177,7 @@ func TestGenerateReport_DifferentialMode(t *testing.T) {
 	}
 
 	// Second run: Generate differential report again
-	opts.Output = filepath.Join(tmpDir, "report2.jsonl")
+	opts.FilePrefix = "report2"
 	if err := app.GenerateReport(ctx, st, opts); err != nil {
 		t.Fatalf("GenerateReport() second run error = %v", err)
 	}
@@ -244,10 +242,11 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 	}
 
 	opts := app.ReportOptions{
-		Format:    "jsonl",
-		Output:    filepath.Join(tmpDir, "npm-report.jsonl"),
-		Ecosystem: "npm",
-		Diff:      true,
+		Format:     "jsonl",
+		OutputDir:  tmpDir,
+		FilePrefix: "npm-report",
+		Ecosystem:  "npm",
+		Diff:       true,
 	}
 
 	// Generate differential report for npm only
@@ -289,7 +288,7 @@ func TestGenerateReport_DifferentialModeWithEcosystemFilter(t *testing.T) {
 	}
 
 	// Second run: Should only report the new npm vulnerability
-	opts.Output = filepath.Join(tmpDir, "npm-report2.jsonl")
+	opts.FilePrefix = "npm-report2"
 	if err := app.GenerateReport(ctx, st, opts); err != nil {
 		t.Fatalf("GenerateReport() second npm run error = %v", err)
 	}

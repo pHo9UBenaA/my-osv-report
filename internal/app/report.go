@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/report"
@@ -14,15 +13,16 @@ import (
 
 // ReportOptions holds options for report generation.
 type ReportOptions struct {
-	Format    string
-	Output    string
-	Ecosystem string
-	Diff      bool
+	Format     string
+	OutputDir  string
+	FilePrefix string
+	Ecosystem  string
+	Diff       bool
 }
 
 // GenerateReport creates a vulnerability report from the database.
 func GenerateReport(ctx context.Context, st *store.Store, opts ReportOptions) error {
-	outputPath := resolveOutputPath(opts.Output, time.Now().UTC())
+	outputPath := resolveOutputPath(opts.OutputDir, opts.FilePrefix, opts.Format, time.Now().UTC())
 	slog.Info("generating report", "format", opts.Format, "output", outputPath, "ecosystem", opts.Ecosystem, "diff", opts.Diff)
 
 	var entries []store.VulnerabilityReportEntry
@@ -80,15 +80,23 @@ func GenerateReport(ctx context.Context, st *store.Store, opts ReportOptions) er
 	return nil
 }
 
-func resolveOutputPath(base string, now time.Time) string {
-	if base == "" {
-		return base
-	}
+func resolveOutputPath(dir, prefix, format string, now time.Time) string {
+	ext := formatToExtension(format)
+	filename := fmt.Sprintf("%s_%s%s", prefix, now.Format("20060102T150405Z"), ext)
+	return filepath.Join(dir, filename)
+}
 
-	dir := filepath.Dir(base)
-	ext := filepath.Ext(base)
-	name := strings.TrimSuffix(filepath.Base(base), ext)
-	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", name, now.Format("20060102T150405Z"), ext))
+func formatToExtension(format string) string {
+	switch format {
+	case "markdown":
+		return ".md"
+	case "csv":
+		return ".csv"
+	case "jsonl":
+		return ".jsonl"
+	default:
+		return ".txt"
+	}
 }
 
 func convertToReportEntries(entries []store.VulnerabilityReportEntry) []report.VulnerabilityEntry {

@@ -13,34 +13,37 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
-var (
-	fetchMode       = flag.Bool("fetch", false, "Fetch vulnerability data from OSV API")
-	reportMode      = flag.Bool("report", false, "Generate report instead of scraping")
-	reportFormat    = flag.String("format", "markdown", "Report format: markdown, csv, jsonl")
-	reportOutput    = flag.String("output", "./report.md", "Report output base path (timestamp suffix appended before extension)")
-	reportEcosystem = flag.String("ecosystem", "", "Filter report by ecosystem (empty = all)")
-	reportDiff      = flag.Bool("diff", false, "Generate differential report (only new/changed vulnerabilities)")
-	helpMode        = flag.Bool("help", false, "Show help message")
-)
-
 func main() {
-	flag.Parse()
-
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	if err := run(); err != nil {
-		log.Fatalf("error: %v", err)
+	if len(os.Args) < 2 {
+		app.ShowHelp()
+		os.Exit(0)
+	}
+
+	cmd := os.Args[1]
+
+	switch cmd {
+	case "fetch":
+		if err := runFetch(); err != nil {
+			log.Fatalf("error: %v", err)
+		}
+	case "report":
+		if err := runReport(); err != nil {
+			log.Fatalf("error: %v", err)
+		}
+	case "help", "-h", "--help":
+		app.ShowHelp()
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", cmd)
+		app.ShowHelp()
+		os.Exit(1)
 	}
 }
 
-func run() error {
+func runFetch() error {
 	ctx := context.Background()
-
-	if *helpMode || (!*fetchMode && !*reportMode) {
-		app.ShowHelp()
-		return nil
-	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -53,18 +56,39 @@ func run() error {
 	}
 	defer st.Close()
 
-	if *reportMode {
-		return app.GenerateReport(ctx, st, app.ReportOptions{
-			Format:    *reportFormat,
-			Output:    *reportOutput,
-			Ecosystem: *reportEcosystem,
-			Diff:      *reportDiff,
-		})
+	return app.Fetch(ctx, cfg, st)
+}
+
+func runReport() error {
+	reportCmd := flag.NewFlagSet("report", flag.ExitOnError)
+	format := reportCmd.String("format", "markdown", "Report format: markdown, csv, jsonl")
+	outputDir := reportCmd.String("output-dir", ".", "Report output directory")
+	filePrefix := reportCmd.String("file-prefix", "report", "Report filename prefix (timestamp and extension appended automatically)")
+	ecosystem := reportCmd.String("ecosystem", "", "Filter report by ecosystem (empty = all)")
+	diff := reportCmd.Bool("diff", false, "Generate differential report (only new/changed vulnerabilities)")
+
+	if err := reportCmd.Parse(os.Args[2:]); err != nil {
+		return err
 	}
 
-	if *fetchMode {
-		return app.Fetch(ctx, cfg, st)
+	ctx := context.Background()
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
 
-	return nil
+	st, err := store.NewStore(ctx, cfg.DBPath)
+	if err != nil {
+		return fmt.Errorf("new store: %w", err)
+	}
+	defer st.Close()
+
+	return app.GenerateReport(ctx, st, app.ReportOptions{
+		Format:     *format,
+		OutputDir:  *outputDir,
+		FilePrefix: *filePrefix,
+		Ecosystem:  *ecosystem,
+		Diff:       *diff,
+	})
 }

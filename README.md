@@ -27,24 +27,24 @@ cp .env.example .env
 task fetch
 
 # Or directly:
-./osv-scraper -fetch
+./osv-scraper fetch
 ```
 
 ### 3. Generate Reports
 
-Output file name:
-`report_<utc-timestamp>.<ext>`
-
+Output file name format:
+`<file-prefix>_<utc-timestamp>.<ext>`
 
 ```bash
 # Generate a markdown report
 task report-markdown
 
-# Generate a CSV report
-task report-csv
-
-# Generate differential report (only new/changed vulnerabilities)
+# Generate differential report (only new/updated vulnerabilities)
 task report-diff-markdown
+
+# Custom output location and format
+./osv-scraper report --format csv --output-dir ./reports --file-prefix npm-vuln
+# Output: ./reports/npm-vuln_20250124T123456Z.csv
 ```
 
 ## Usage

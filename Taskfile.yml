@@ -21,7 +21,7 @@ tasks:
   fetch:
     desc: Fetch vulnerability data from OSV API (set OSV_ECOSYSTEMS environment variable)
     cmds:
-      - ./{{.BINARY_NAME}} -fetch
+      - ./{{.BINARY_NAME}} fetch
     deps:
       - build
 
@@ -46,14 +46,14 @@ tasks:
   report-markdown:
     desc: Generate Markdown report from database
     cmds:
-      - ./{{.BINARY_NAME}} -report -format=markdown -output=./report.md
+      - ./{{.BINARY_NAME}} report --format=markdown --output-dir=./reports/ --file-prefix=report
     deps:
       - build
 
   report-diff-markdown:
     desc: Generate differential Markdown report (only new/changed vulnerabilities)
     cmds:
-      - ./{{.BINARY_NAME}} -report -diff -format=markdown -output=./report.md
+      - ./{{.BINARY_NAME}} report --diff --format=markdown --output-dir=./reports/ --file-prefix=report
     deps:
       - build
 
