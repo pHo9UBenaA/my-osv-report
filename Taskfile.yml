@@ -11,12 +11,7 @@ tasks:
     cmds:
       - go build -o {{.BINARY_NAME}} {{.CMD_DIR}}
 
-  generate:
-    desc: Run go generate
-    cmds:
-      - go generate ./...
-
-  run:
+  help:
     desc: Show help and available commands
     cmds:
       - ./{{.BINARY_NAME}}
@@ -30,62 +25,23 @@ tasks:
     deps:
       - build
 
-  test:
-    desc: Run all tests
+  check:
+    desc: Run all quality checks
     cmds:
-      - go test ./...
+      - gofmt -l .
+      - goimports -l .
+      - golangci-lint run ./...
+      - go vet ./...
+      - go test -race -shuffle=on ./...
+      - go mod tidy
+      - git diff --exit-code go.mod go.sum
+      - go mod verify
+      - govulncheck ./...
 
   test-cover:
     desc: Run all tests with coverage
     cmds:
       - go test -cover ./...
-
-  fmt:
-    desc: Check code formatting
-    cmds:
-      - gofmt -l .
-
-  fmt-fix:
-    desc: Fix code formatting
-    cmds:
-      - gofmt -w .
-
-  vet:
-    desc: Run static analysis
-    cmds:
-      - go vet ./...
-
-  lint:
-    desc: Run golangci-lint
-    cmds:
-      - golangci-lint run ./...
-
-  check:
-    desc: Run all quality checks (test, format, vet)
-    cmds:
-      - go test ./...
-      - gofmt -l .
-      - go vet ./...
-
-  clean:
-    desc: Remove built binary
-    cmds:
-      - rm -f {{.BINARY_NAME}}
-
-  mod-tidy:
-    desc: Tidy go.mod and go.sum
-    cmds:
-      - go mod tidy
-
-  mod-verify:
-    desc: Verify dependencies
-    cmds:
-      - go mod verify
-
-  mod-download:
-    desc: Download dependencies
-    cmds:
-      - go mod download
 
   report-markdown:
     desc: Generate Markdown report from database
@@ -94,38 +50,10 @@ tasks:
     deps:
       - build
 
-  report-csv:
-    desc: Generate CSV report from database
-    cmds:
-      - ./{{.BINARY_NAME}} -report -format=csv -output=./report.csv
-    deps:
-      - build
-
-  report-jsonl:
-    desc: Generate JSONL report from database
-    cmds:
-      - ./{{.BINARY_NAME}} -report -format=jsonl -output=./report.jsonl
-    deps:
-      - build
-
   report-diff-markdown:
     desc: Generate differential Markdown report (only new/changed vulnerabilities)
     cmds:
       - ./{{.BINARY_NAME}} -report -diff -format=markdown -output=./report.md
-    deps:
-      - build
-
-  report-diff-csv:
-    desc: Generate differential CSV report (only new/changed vulnerabilities)
-    cmds:
-      - ./{{.BINARY_NAME}} -report -diff -format=csv -output=./report.csv
-    deps:
-      - build
-
-  report-diff-jsonl:
-    desc: Generate differential JSONL report (only new/changed vulnerabilities)
-    cmds:
-      - ./{{.BINARY_NAME}} -report -diff -format=jsonl -output=./report.jsonl
     deps:
       - build
 
