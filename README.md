@@ -1,4 +1,4 @@
-# OSV Scraper
+# OSV Report
 
 > ⚠️ **WARNING: PILOT VERSION**
 >
