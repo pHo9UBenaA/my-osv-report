@@ -60,7 +60,9 @@ func TestProcessEntries(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "GHSA-found") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"id":"GHSA-found","modified":"2025-10-04T12:00:00Z","affected":[{"package":{"ecosystem":"npm","name":"test-package"}}]}`))
+			if _, err := w.Write([]byte(`{"id":"GHSA-found","modified":"2025-10-04T12:00:00Z","affected":[{"package":{"ecosystem":"npm","name":"test-package"}}]}`)); err != nil {
+				t.Errorf("failed to write response: %v", err)
+			}
 		} else if strings.Contains(r.URL.Path, "GHSA-deleted") {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -97,7 +99,9 @@ func TestProcessEntriesParallel(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 		id := strings.TrimPrefix(r.URL.Path, "/v1/vulns/")
-		w.Write([]byte(`{"id":"` + id + `","modified":"2025-10-04T12:00:00Z","affected":[{"package":{"ecosystem":"npm","name":"test-package"}}]}`))
+		if _, err := w.Write([]byte(`{"id":"` + id + `","modified":"2025-10-04T12:00:00Z","affected":[{"package":{"ecosystem":"npm","name":"test-package"}}]}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 

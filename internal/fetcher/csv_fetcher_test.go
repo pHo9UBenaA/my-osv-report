@@ -19,7 +19,9 @@ GHSA-0002,2025-10-04T11:00:00Z`
 			t.Errorf("expected GET, got %s", r.Method)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(csvContent))
+		if _, err := w.Write([]byte(csvContent)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 

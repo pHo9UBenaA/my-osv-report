@@ -134,9 +134,18 @@ OSV_DATA_RETENTION_DAYS=30`
 	}
 
 	// Change to temp directory
-	origDir, _ := os.Getwd()
-	os.Chdir(tempDir)
-	defer os.Chdir(origDir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Errorf("Failed to restore directory: %v", err)
+		}
+	}()
 
 	// Clear environment variables
 	os.Clearenv()

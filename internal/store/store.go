@@ -315,7 +315,7 @@ func (s *Store) DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	cutoffStr := cutoff.Format(timeFormat)
 
@@ -395,7 +395,7 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []VulnerabilityR
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Clear existing snapshot
 	_, err = tx.ExecContext(ctx, "DELETE FROM reported_snapshot")

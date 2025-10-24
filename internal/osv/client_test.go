@@ -86,7 +86,9 @@ func TestGetVulnerability(t *testing.T) {
 					t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 				}
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.serverResp))
+				if _, err := w.Write([]byte(tt.serverResp)); err != nil {
+					t.Errorf("failed to write response: %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -129,7 +131,9 @@ func TestGetVulnerability(t *testing.T) {
 func TestClientWithRateLimit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`))
+		if _, err := w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -168,7 +172,9 @@ func TestGetVulnerability429Retry(t *testing.T) {
 		}
 		// Return success on 3rd call
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`))
+		if _, err := w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -203,7 +209,9 @@ func TestNewClientWithOptions(t *testing.T) {
 		// Simulate slow response
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`))
+		if _, err := w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 

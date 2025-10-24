@@ -11,6 +11,11 @@ tasks:
     cmds:
       - go build -o {{.BINARY_NAME}} {{.CMD_DIR}}
 
+  generate:
+    desc: Run go generate
+    cmds:
+      - go generate ./...
+
   run:
     desc: Show help and available commands
     cmds:
@@ -50,6 +55,11 @@ tasks:
     cmds:
       - go vet ./...
 
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
   check:
     desc: Run all quality checks (test, format, vet)
     cmds:
@@ -61,6 +71,21 @@ tasks:
     desc: Remove built binary
     cmds:
       - rm -f {{.BINARY_NAME}}
+
+  mod-tidy:
+    desc: Tidy go.mod and go.sum
+    cmds:
+      - go mod tidy
+
+  mod-verify:
+    desc: Verify dependencies
+    cmds:
+      - go mod verify
+
+  mod-download:
+    desc: Download dependencies
+    cmds:
+      - go mod download
 
   report-markdown:
     desc: Generate Markdown report from database
