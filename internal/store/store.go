@@ -208,13 +208,8 @@ func (s *Store) GetCursor(ctx context.Context, source string) (time.Time, error)
 	return cursor, nil
 }
 
-// SaveVulnerability is kept for backward compatibility.
+// SaveVulnerability saves a vulnerability record to the database.
 func (s *Store) SaveVulnerability(ctx context.Context, v Vulnerability) error {
-	return s.SaveVulnerabilityRecord(ctx, v)
-}
-
-// SaveVulnerabilityRecord saves a vulnerability record to the database.
-func (s *Store) SaveVulnerabilityRecord(ctx context.Context, v Vulnerability) error {
 	publishedStr := ""
 	if !v.Published.IsZero() {
 		publishedStr = v.Published.Format(timeFormat)
@@ -267,6 +262,24 @@ func (s *Store) SaveTombstone(ctx context.Context, id string) error {
 	return nil
 }
 
+// scanReportEntries scans vulnerability report entries from sql.Rows.
+func scanReportEntries(rows *sql.Rows) ([]VulnerabilityReportEntry, error) {
+	var entries []VulnerabilityReportEntry
+	for rows.Next() {
+		var e VulnerabilityReportEntry
+		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
+			return nil, fmt.Errorf("scan row: %w", err)
+		}
+		entries = append(entries, e)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+
+	return entries, nil
+}
+
 // GetVulnerabilitiesForReport retrieves vulnerabilities for reporting.
 func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
 	query := `
@@ -293,20 +306,7 @@ func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem strin
 	}
 	defer rows.Close()
 
-	var entries []VulnerabilityReportEntry
-	for rows.Next() {
-		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
-		}
-		entries = append(entries, e)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate rows: %w", err)
-	}
-
-	return entries, nil
+	return scanReportEntries(rows)
 }
 
 // DeleteVulnerabilitiesOlderThan deletes vulnerabilities and related data older than the cutoff time.
@@ -373,20 +373,7 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 	}
 	defer rows.Close()
 
-	var entries []VulnerabilityReportEntry
-	for rows.Next() {
-		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
-		}
-		entries = append(entries, e)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate rows: %w", err)
-	}
-
-	return entries, nil
+	return scanReportEntries(rows)
 }
 
 // SaveReportSnapshot saves the current report snapshot, replacing any existing snapshot.

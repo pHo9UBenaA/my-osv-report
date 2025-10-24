@@ -41,10 +41,16 @@ func (s *Scraper) ProcessEntries(ctx context.Context, entries []Entry) error {
 
 // ProcessEntriesParallel fetches vulnerabilities in parallel with controlled concurrency.
 func (s *Scraper) ProcessEntriesParallel(ctx context.Context, entries []Entry, maxConcurrency int) error {
+	// If maxConcurrency <= 0, falls back to serial execution.
+	if maxConcurrency <= 0 {
+		return s.ProcessEntries(ctx, entries)
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, maxConcurrency)
 
 	for _, entry := range entries {
+		entry := entry // capture loop variable
 		g.Go(func() error {
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore

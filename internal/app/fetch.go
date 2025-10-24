@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -30,17 +31,17 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 	adapter := &storeAdapter{st}
 	scraper := osv.NewScraper(client, adapter)
 
-	var lastErr error
+	var errs []error
 	for _, eco := range cfg.Ecosystems {
 		if err := processEcosystem(ctx, eco, st, scraper, cfg); err != nil {
 			slog.Error("failed to process ecosystem", "ecosystem", eco, "error", err)
-			lastErr = err
+			errs = append(errs, err)
 			continue
 		}
 	}
 
-	if lastErr != nil {
-		return fmt.Errorf("some ecosystems failed to process: %w", lastErr)
+	if len(errs) > 0 {
+		return fmt.Errorf("some ecosystems failed to process: %w", errors.Join(errs...))
 	}
 
 	slog.Info("completed vulnerability fetch")
