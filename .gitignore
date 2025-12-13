@@ -8,7 +8,7 @@
 *.sqlite
 
 # Reports
-/report*.*
+report*.*
 
 AGENTS.md
 CLAUDE.md
@@ -50,3 +50,4 @@ go.work.sum
 # .vscode/
 
 .gocache
+.golangci-lint-cache

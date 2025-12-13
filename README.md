@@ -1,96 +1,128 @@
 # OSV Report
 
-> ⚠️ **WARNING: PILOT VERSION**
->
-> This package is a **PILOT VERSION** and has **NOT been reviewed by contributors**.
-> Use with caution in production environments. The data and functionality provided
-> should be validated independently before making critical security decisions.
+Fetches vulnerability data directly from the [OSV](https://osv.dev/) ecosystem, stores it locally in SQLite, and generates snapshot or differential reports for ecosystems such as npm, PyPI, Go, and Maven.
 
-A tool to fetch vulnerability information from OSV (Open Source Vulnerabilities) using sitemaps, CSV archives, and OSV API.
+> [!WARNING]
+> This tool has not been reviewed by outside contributors. Validate the data and behavior before relying on it for critical decisions.
+
+## What this tool does
+
+* Fetches vulnerability data from the OSV ecosystem
+* Stores fetched data in a local SQLite database
+* Generates reports in Markdown, CSV, or JSONL format
+* Supports full snapshots and differential (diff) reports
 
 ## Quick Start
 
-### 1. Setup Environment
+The steps below show the minimum workflow to fetch vulnerabilities and generate a report.
 
 ```bash
-# Copy the example configuration file
+# 1. Prepare configuration
 cp .env.example .env
-
-# Edit .env to configure ecosystems to monitor
-# Example: OSV_ECOSYSTEMS=npm,pypi,go
 ```
 
-### 2. Fetch Vulnerability Data
+Edit `.env` and set `OSV_ECOSYSTEMS` to the ecosystems you want to fetch.
 
 ```bash
-# Fetch latest vulnerability information from OSV API
+# 2. Fetch vulnerability data
 task fetch
-
-# Or directly:
-./osv-scraper fetch
 ```
 
-### 3. Generate Reports
-
-Output file name format:
-`<file-prefix>_<utc-timestamp>.<ext>`
-
 ```bash
-# Generate a markdown report
+# 3. Generate a Markdown report
 task report-markdown
-
-# Generate differential report (only new/updated vulnerabilities)
-task report-diff-markdown
-
-# Custom output location and format
-./osv-scraper report --format csv --output-dir ./reports --file-prefix npm-vuln
-# Output: ./reports/npm-vuln_20250124T123456Z.csv
 ```
 
-## Usage
+Reports are written under `./reports/` by default.
 
-### Available Commands
+## How it works
 
-```bash
-# Show help and command list
-task --list
-# Or
-task run
-```
+The tool follows a simple lifecycle:
 
-### Configuration
-
-Configure the application using environment variables or a `.env` file:
-
-NOTE: Environment Variables
+1. Fetch vulnerability data from OSV for configured ecosystems
+2. Persist the data locally in SQLite, keeping historical state
+3. Generate reports from the stored data, either as full snapshots or diffs
 
 <details>
 
-| Variable Name | Description | Default Value |
-| --- | --- | --- |
-| OSV_API_BASE_URL | OSV API base URL | `https://api.osv.dev` |
-| OSV_ECOSYSTEMS | Target ecosystems to collect (comma-separated) | (empty: no collection) |
-| OSV_DB_PATH | SQLite DB path | ./osv.db |
-| OSV_DATA_RETENTION_DAYS | Number of days to retain vulnerability data | 7 |
-| OSV_RATE_LIMIT | API request rate limit (requests per second) | 10.0 |
-| OSV_MAX_CONCURRENCY | Maximum concurrent API requests | 5 |
-| OSV_BATCH_SIZE | Batch size for processing entries | 100 |
-| OSV_HTTP_TIMEOUT | HTTP client timeout in seconds | 30 |
+### Fetch phase
+
+* Loads configuration from `.env` / environment variables (notably `OSV_ECOSYSTEMS`, `OSV_RATE_LIMIT`, and `OSV_MAX_CONCURRENCY`).
+* For each ecosystem, reads the last processed cursor from `source_cursor` and fetches the ecosystem sitemap.
+* Extracts `(vulnerability ID, lastmod)` from the sitemap and keeps only entries newer than the cursor and within the retention window (`OSV_DATA_RETENTION_DAYS`).
+* Fetches vulnerability details from `GET /v1/vulns/{id}` with rate limiting and retry-on-429, then processes entries in batches and with bounded parallelism.
+* If the OSV API returns 404 for an ID, records it as a tombstone.
+
+### Store phase
+
+* Persists data in SQLite (`OSV_DB_PATH`) using upserts for `vulnerability` and idempotent inserts for `affected`.
+* Tracks progress per ecosystem in `source_cursor` so subsequent runs only fetch newly modified entries.
+* Deletes vulnerabilities (and related `affected` rows) older than the retention cutoff during fetch to keep the DB size bounded.
+* Keeps `tombstone` and `reported_snapshot` tables for deleted IDs and diff reporting.
+
+### Report phase
+
+* Reads from SQLite by joining `vulnerability` and `affected`, ordered by published/modified time, optionally filtered by ecosystem.
+* Writes Markdown / CSV / JSONL reports to the output directory as `prefix_YYYYMMDDThhmmssZ.ext` (UTC timestamp).
+* Snapshot reports emit the current rows in the DB; diff reports emit only rows that are new or changed compared to `reported_snapshot`.
+* After a diff report is written, `reported_snapshot` is cleared and rebuilt from the current query result (use consistent ecosystem filters between diff runs).
 
 </details>
 
-### Supported Ecosystems
+## Reports: Snapshot and Diff
 
-Supports the following 36 ecosystems:
+Snapshot and diff reports are generated from the same stored data, but differ in how they compare the current state to past runs.
 
-*AlmaLinux, Alpaquita, Alpine, Android, BellSoft Hardened Containers,
-Bitnami, Chainguard, CRAN, crates.io, Debian, Echo, GHC, GIT,
-GitHub Actions, Go, Hackage, Hex, Linux, Mageia, Maven, MinimOS,
-npm, NuGet, openEuler, openSUSE, OSS-Fuzz, Packagist, Pub, PyPI,
-Red Hat, Rocky Linux, RubyGems, SUSE, SwiftURL, Ubuntu, Wolfi*
+* **Snapshot reports** include all vulnerabilities currently stored in the database
+* **Diff reports** include only vulnerabilities that are new or updated since the last diff run
+* Diff reports use `reported_snapshot` as the baseline and rebuild it on each run
 
-Data for each ecosystem is fetched independently, and cursors are managed separately.
+## Using the CLI directly
 
+If you prefer to bypass the Taskfile wrappers, run `./osv-scraper` yourself: it exposes a simple command set that mirrors the documented workflow.
+
+<details>
+
+### Commands overview
+
+* `fetch` – pulls fresh vulnerabilities for every configured ecosystem, respects stored cursors, retention, rate limits, and batch sizes, and saves the results locally.
+* `report` – reads the stored data and writes Markdown/CSV/JSONL exports, optionally filtered by ecosystem and/or limited to new edits since the previous diff report.
+* `help` (`-h`/`--help`) – prints usage text and exits without touching the database.
+
+### Report flags
+
+```bash
+./osv-scraper report --diff --format csv --ecosystem npm --output-dir ./reports --file-prefix npm-vuln
+```
+
+Options:
+
+* `--format` (`markdown`, `csv`, or `jsonl`)
+* `--output-dir` (destination directory)
+* `--file-prefix` (prepended to the timestamped filename)
+* `--ecosystem` (empty string selects every ecosystem)
+* `--diff` (emit only rows that are new or changed since the last diff report)
+
+Both commands share the same configuration and SQLite backend, so reports always reflect the data left behind by the most recent fetch run.
+
+</details>
+
+## Configuration
+
+Configuration is provided via `.env` or environment variables.
+
+At minimum, `OSV_ECOSYSTEMS` must be set before running the fetch command.
+
+| Name                      | Description                           | Default                   |
+| ------------------------- | ------------------------------------- | ------------------------- |
+| `OSV_API_BASE_URL`        | OSV API root                          | `https://api.osv.dev`     |
+| `OSV_ECOSYSTEMS`          | Comma-separated ecosystems to monitor | *(empty – no collection)* |
+| `OSV_DB_PATH`             | SQLite database file                  | `./osv.db`                |
+| `OSV_DATA_RETENTION_DAYS` | Days of vulnerability data to keep    | `7`                       |
+| `OSV_RATE_LIMIT`          | API requests per second               | `10.0`                    |
+| `OSV_MAX_CONCURRENCY`     | Parallel API requests                 | `5`                       |
+| `OSV_BATCH_SIZE`          | Entries per batch                     | `100`                     |
+| `OSV_HTTP_TIMEOUT`        | HTTP timeout (seconds)                | `30`                      |
 
 ## License
 
