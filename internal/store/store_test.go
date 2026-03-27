@@ -13,6 +13,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func ptrFloat64(v float64) *float64 { return &v }
+
 func TestNewStore(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -449,12 +451,12 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 		t.Errorf("npmEntries[0].Package = %q, want %q", npmEntries[0].Package, "test-package-1")
 	}
 
-	if !npmEntries[0].SeverityBaseScore.Valid {
-		t.Fatal("expected SeverityBaseScore to be valid")
+	if npmEntries[0].SeverityScore == nil {
+		t.Fatal("expected SeverityScore to be non-nil")
 	}
 
-	if npmEntries[0].SeverityBaseScore.Float64 != 9.8 {
-		t.Errorf("SeverityBaseScore = %v, want 9.8", npmEntries[0].SeverityBaseScore.Float64)
+	if *npmEntries[0].SeverityScore != 9.8 {
+		t.Errorf("SeverityScore = %v, want 9.8", *npmEntries[0].SeverityScore)
 	}
 
 	if npmEntries[0].SeverityVector != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
@@ -550,15 +552,15 @@ func TestSaveReportSnapshot(t *testing.T) {
 	}
 	defer s.Close()
 
-	entries := []store.VulnerabilityReportEntry{
+	entries := []store.ReportRow{
 		{
-			ID:                "GHSA-test-1",
-			Ecosystem:         "npm",
-			Package:           "pkg1",
-			Published:         "2025-10-01T00:00:00Z",
-			Modified:          "2025-10-02T00:00:00Z",
-			SeverityBaseScore: sql.NullFloat64{Float64: 9.8, Valid: true},
-			SeverityVector:    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+			ID:             "GHSA-test-1",
+			Ecosystem:      "npm",
+			Package:        "pkg1",
+			Published:      "2025-10-01T00:00:00Z",
+			Modified:       "2025-10-02T00:00:00Z",
+			SeverityScore:  ptrFloat64(9.8),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 		},
 		{
 			ID:             "GHSA-test-2",
@@ -624,7 +626,7 @@ func TestSaveReportSnapshot(t *testing.T) {
 	}
 
 	// Save again (should replace old snapshot)
-	newEntries := []store.VulnerabilityReportEntry{
+	newEntries := []store.ReportRow{
 		{
 			ID:             "GHSA-test-3",
 			Ecosystem:      "Go",
@@ -807,24 +809,24 @@ func TestGetUnreportedVulnerabilities(t *testing.T) {
 	}
 
 	// Setup: Create snapshot with old data
-	snapshot := []store.VulnerabilityReportEntry{
+	snapshot := []store.ReportRow{
 		{
-			ID:                "GHSA-unchanged",
-			Ecosystem:         "npm",
-			Package:           "pkg-unchanged",
-			Published:         "2025-10-01T00:00:00Z",
-			Modified:          time.Now().Format(time.RFC3339),
-			SeverityBaseScore: sql.NullFloat64{Float64: 9.8, Valid: true},
-			SeverityVector:    "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+			ID:             "GHSA-unchanged",
+			Ecosystem:      "npm",
+			Package:        "pkg-unchanged",
+			Published:      "2025-10-01T00:00:00Z",
+			Modified:       time.Now().Format(time.RFC3339),
+			SeverityScore:  ptrFloat64(9.8),
+			SeverityVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 		},
 		{
-			ID:                "GHSA-modified",
-			Ecosystem:         "npm",
-			Package:           "pkg-modified",
-			Published:         "2025-10-01T00:00:00Z",
-			Modified:          "2025-10-02T00:00:00Z", // Old modified date
-			SeverityBaseScore: sql.NullFloat64{Float64: 6.4, Valid: true},
-			SeverityVector:    "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N",
+			ID:             "GHSA-modified",
+			Ecosystem:      "npm",
+			Package:        "pkg-modified",
+			Published:      "2025-10-01T00:00:00Z",
+			Modified:       "2025-10-02T00:00:00Z", // Old modified date
+			SeverityScore:  ptrFloat64(6.4),
+			SeverityVector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N",
 		},
 	}
 	if err := s.SaveReportSnapshot(ctx, snapshot); err != nil {

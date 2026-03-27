@@ -30,15 +30,16 @@ type Affected struct {
 	Package   string
 }
 
-// VulnerabilityReportEntry represents a vulnerability with metadata for reporting.
-type VulnerabilityReportEntry struct {
-	ID                string
-	Ecosystem         string
-	Package           string
-	Published         string
-	Modified          string
-	SeverityBaseScore sql.NullFloat64
-	SeverityVector    string
+// ReportRow represents a vulnerability with metadata for reporting.
+// Uses *float64 instead of sql.NullFloat64 to keep DB details internal.
+type ReportRow struct {
+	ID             string
+	Ecosystem      string
+	Package        string
+	Published      string
+	Modified       string
+	SeverityScore  *float64
+	SeverityVector string
 }
 
 // Store manages database operations for the OSV scraper.
@@ -290,15 +291,19 @@ func (s *Store) SaveTombstone(ctx context.Context, id string) error {
 	return nil
 }
 
-// scanReportEntries scans vulnerability report entries from sql.Rows.
-func scanReportEntries(rows *sql.Rows) ([]VulnerabilityReportEntry, error) {
-	var entries []VulnerabilityReportEntry
+// scanReportRows scans report rows from sql.Rows, converting sql.NullFloat64 to *float64.
+func scanReportRows(rows *sql.Rows) ([]ReportRow, error) {
+	var entries []ReportRow
 	for rows.Next() {
-		var e VulnerabilityReportEntry
-		if err := rows.Scan(&e.ID, &e.Ecosystem, &e.Package, &e.Published, &e.Modified, &e.SeverityBaseScore, &e.SeverityVector); err != nil {
+		var r ReportRow
+		var score sql.NullFloat64
+		if err := rows.Scan(&r.ID, &r.Ecosystem, &r.Package, &r.Published, &r.Modified, &score, &r.SeverityVector); err != nil {
 			return nil, fmt.Errorf("scan row: %w", err)
 		}
-		entries = append(entries, e)
+		if score.Valid {
+			r.SeverityScore = &score.Float64
+		}
+		entries = append(entries, r)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -309,7 +314,7 @@ func scanReportEntries(rows *sql.Rows) ([]VulnerabilityReportEntry, error) {
 }
 
 // GetVulnerabilitiesForReport retrieves vulnerabilities for reporting.
-func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
+func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]ReportRow, error) {
 	query := `
 		SELECT v.id, a.ecosystem, a.package,
 			COALESCE(v.published, '') as published,
@@ -334,7 +339,7 @@ func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem strin
 	}
 	defer rows.Close()
 
-	return scanReportEntries(rows)
+	return scanReportRows(rows)
 }
 
 // DeleteVulnerabilitiesOlderThan deletes vulnerabilities and related data older than the cutoff time.
@@ -371,7 +376,7 @@ func (s *Store) DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.
 }
 
 // GetUnreportedVulnerabilities retrieves vulnerabilities that differ from the last snapshot.
-func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem string) ([]VulnerabilityReportEntry, error) {
+func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem string) ([]ReportRow, error) {
 	query := `
 		SELECT v.id, a.ecosystem, a.package,
 			COALESCE(v.published, '') as published,
@@ -401,11 +406,11 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 	}
 	defer rows.Close()
 
-	return scanReportEntries(rows)
+	return scanReportRows(rows)
 }
 
 // SaveReportSnapshot saves the current report snapshot, replacing any existing snapshot.
-func (s *Store) SaveReportSnapshot(ctx context.Context, entries []VulnerabilityReportEntry) error {
+func (s *Store) SaveReportSnapshot(ctx context.Context, entries []ReportRow) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -429,7 +434,7 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []VulnerabilityR
 	defer stmt.Close()
 
 	for _, e := range entries {
-		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, toNullFloat64(e.SeverityBaseScore), toNullString(e.SeverityVector))
+		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, e.SeverityScore, toNullString(e.SeverityVector))
 		if err != nil {
 			return fmt.Errorf("insert snapshot entry: %w", err)
 		}

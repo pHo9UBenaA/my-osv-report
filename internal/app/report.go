@@ -25,29 +25,29 @@ func GenerateReport(ctx context.Context, st *store.Store, opts ReportOptions) er
 	outputPath := resolveOutputPath(opts.OutputDir, opts.FilePrefix, opts.Format, time.Now().UTC())
 	slog.Info("generating report", "format", opts.Format, "output", outputPath, "ecosystem", opts.Ecosystem, "diff", opts.Diff)
 
-	var entries []store.VulnerabilityReportEntry
+	var rows []store.ReportRow
 	var err error
 
 	if opts.Diff {
-		entries, err = st.GetUnreportedVulnerabilities(ctx, opts.Ecosystem)
+		rows, err = st.GetUnreportedVulnerabilities(ctx, opts.Ecosystem)
 		if err != nil {
 			return fmt.Errorf("get unreported vulnerabilities: %w", err)
 		}
 	} else {
-		entries, err = st.GetVulnerabilitiesForReport(ctx, opts.Ecosystem)
+		rows, err = st.GetVulnerabilitiesForReport(ctx, opts.Ecosystem)
 		if err != nil {
 			return fmt.Errorf("get vulnerabilities: %w", err)
 		}
 	}
 
-	slog.Info("fetched vulnerabilities", "count", len(entries))
+	slog.Info("fetched vulnerabilities", "count", len(rows))
 
-	if len(entries) == 0 {
+	if len(rows) == 0 {
 		slog.Warn("no vulnerabilities found in database")
 		return nil
 	}
 
-	reportEntries := convertToReportEntries(entries)
+	reportEntries := convertToReportEntries(rows)
 
 	switch opts.Format {
 	case "markdown":
@@ -67,14 +67,14 @@ func GenerateReport(ctx context.Context, st *store.Store, opts ReportOptions) er
 	slog.Info("report generated successfully", "output", outputPath)
 
 	if opts.Diff {
-		allEntries, err := st.GetVulnerabilitiesForReport(ctx, opts.Ecosystem)
+		allRows, err := st.GetVulnerabilitiesForReport(ctx, opts.Ecosystem)
 		if err != nil {
 			return fmt.Errorf("get all vulnerabilities for snapshot: %w", err)
 		}
-		if err := st.SaveReportSnapshot(ctx, allEntries); err != nil {
+		if err := st.SaveReportSnapshot(ctx, allRows); err != nil {
 			return fmt.Errorf("save report snapshot: %w", err)
 		}
-		slog.Info("saved report snapshot", "count", len(allEntries))
+		slog.Info("saved report snapshot", "count", len(allRows))
 	}
 
 	return nil
@@ -99,22 +99,17 @@ func formatToExtension(format string) string {
 	}
 }
 
-func convertToReportEntries(entries []store.VulnerabilityReportEntry) []report.VulnerabilityEntry {
-	result := make([]report.VulnerabilityEntry, len(entries))
-	for i, e := range entries {
-		var basePtr *float64
-		if e.SeverityBaseScore.Valid {
-			value := e.SeverityBaseScore.Float64
-			basePtr = &value
-		}
+func convertToReportEntries(rows []store.ReportRow) []report.VulnerabilityEntry {
+	result := make([]report.VulnerabilityEntry, len(rows))
+	for i, r := range rows {
 		result[i] = report.VulnerabilityEntry{
-			ID:                e.ID,
-			Ecosystem:         e.Ecosystem,
-			Package:           e.Package,
-			Published:         e.Published,
-			Modified:          e.Modified,
-			SeverityBaseScore: basePtr,
-			SeverityVector:    e.SeverityVector,
+			ID:                r.ID,
+			Ecosystem:         r.Ecosystem,
+			Package:           r.Package,
+			Published:         r.Published,
+			Modified:          r.Modified,
+			SeverityBaseScore: r.SeverityScore,
+			SeverityVector:    r.SeverityVector,
 		}
 	}
 	return result
