@@ -51,44 +51,41 @@ func TestFormatCSV_MixedEntries_ProducesHeaderAndDataRows(t *testing.T) {
 
 func TestFormatCSV_FormulaInjectionPrefixes_EscapedWithQuote(t *testing.T) {
 	tests := []struct {
-		name  string
-		entry report.VulnerabilityEntry
+		name        string
+		entry       report.VulnerabilityEntry
+		wantPackage string
 	}{
 		{
 			name: "EqualsPrefix_InPackageName",
 			entry: report.VulnerabilityEntry{
-				ID:             "GHSA-test-1234",
-				Ecosystem:      "npm",
-				Package:        "=malicious-package",
-				SeverityVector: "HIGH",
+				ID: "GHSA-test-1234", Ecosystem: "npm",
+				Package: "=malicious-package", SeverityVector: "HIGH",
 			},
+			wantPackage: "'=malicious-package",
 		},
 		{
 			name: "PlusPrefix_InPackageName",
 			entry: report.VulnerabilityEntry{
-				ID:             "GHSA-test-1234",
-				Ecosystem:      "npm",
-				Package:        "+malicious-package",
-				SeverityVector: "HIGH",
+				ID: "GHSA-test-1234", Ecosystem: "npm",
+				Package: "+malicious-package", SeverityVector: "HIGH",
 			},
+			wantPackage: "'+malicious-package",
 		},
 		{
 			name: "MinusPrefix_InPackageName",
 			entry: report.VulnerabilityEntry{
-				ID:             "GHSA-test-1234",
-				Ecosystem:      "npm",
-				Package:        "-malicious-package",
-				SeverityVector: "HIGH",
+				ID: "GHSA-test-1234", Ecosystem: "npm",
+				Package: "-malicious-package", SeverityVector: "HIGH",
 			},
+			wantPackage: "'-malicious-package",
 		},
 		{
 			name: "AtSignPrefix_InPackageName",
 			entry: report.VulnerabilityEntry{
-				ID:             "GHSA-test-1234",
-				Ecosystem:      "npm",
-				Package:        "@scoped/package",
-				SeverityVector: "HIGH",
+				ID: "GHSA-test-1234", Ecosystem: "npm",
+				Package: "@scoped/package", SeverityVector: "HIGH",
 			},
+			wantPackage: "'@scoped/package",
 		},
 	}
 
@@ -99,24 +96,18 @@ func TestFormatCSV_FormulaInjectionPrefixes_EscapedWithQuote(t *testing.T) {
 				t.Fatalf("FormatCSV() error = %v", err)
 			}
 
-			lines := strings.Split(result, "\n")
-			if len(lines) < 2 {
-				t.Fatalf("expected at least 2 lines, got %d", len(lines))
+			r := csv.NewReader(strings.NewReader(result))
+			records, err := r.ReadAll()
+			if err != nil {
+				t.Fatalf("csv.ReadAll() error = %v", err)
+			}
+			if len(records) < 2 {
+				t.Fatalf("expected at least 2 records, got %d", len(records))
 			}
 
-			dangerousPrefixes := []string{"=", "+", "-", "@"}
-			fields := strings.Split(lines[1], ",")
-			for i, field := range fields {
-				trimmed := strings.Trim(field, "\"")
-				for _, prefix := range dangerousPrefixes {
-					if strings.HasPrefix(trimmed, prefix) {
-						if (i == 1 && strings.HasPrefix(tt.entry.Package, prefix)) ||
-							(i == 2 && strings.HasPrefix(tt.entry.ID, prefix)) ||
-							(i == 6 && strings.HasPrefix(tt.entry.SeverityVector, prefix)) {
-							t.Errorf("field %d should escape dangerous prefix %q but got: %q", i, prefix, field)
-						}
-					}
-				}
+			gotPackage := records[1][1]
+			if gotPackage != tt.wantPackage {
+				t.Errorf("package field = %q, want %q", gotPackage, tt.wantPackage)
 			}
 		})
 	}

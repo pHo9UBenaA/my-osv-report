@@ -80,8 +80,18 @@ func TestGenerateReport_FullMode_WritesReportFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	if !strings.Contains(string(data), "GHSA-test-1") {
-		t.Error("output file does not contain expected vulnerability ID")
+	content := string(data)
+	if !strings.Contains(content, "GHSA-test-1") {
+		t.Error("output missing vulnerability ID")
+	}
+	if !strings.Contains(content, "npm") {
+		t.Error("output missing ecosystem")
+	}
+	if !strings.Contains(content, "express") {
+		t.Error("output missing package name")
+	}
+	if !strings.Contains(content, "9.8") {
+		t.Error("output missing severity score")
 	}
 }
 

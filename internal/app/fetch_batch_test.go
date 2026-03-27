@@ -85,17 +85,36 @@ func TestProcessEntry_VulnFound_SavesVulnAndAffected(t *testing.T) {
 	if len(st.savedVulns) != 1 {
 		t.Fatalf("savedVulns count = %d, want 1", len(st.savedVulns))
 	}
-	if st.savedVulns[0].ID != "GHSA-test-1" {
-		t.Errorf("savedVulns[0].ID = %q, want GHSA-test-1", st.savedVulns[0].ID)
+	v := st.savedVulns[0]
+	if v.ID != "GHSA-test-1" {
+		t.Errorf("ID = %q, want GHSA-test-1", v.ID)
 	}
-	if !st.savedVulns[0].SeverityBaseScore.Valid || st.savedVulns[0].SeverityBaseScore.Float64 != 9.8 {
-		t.Errorf("SeverityBaseScore = %v (valid=%v), want 9.8", st.savedVulns[0].SeverityBaseScore.Float64, st.savedVulns[0].SeverityBaseScore.Valid)
+	wantModified := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
+	if !v.Modified.Equal(wantModified) {
+		t.Errorf("Modified = %v, want %v", v.Modified, wantModified)
+	}
+	wantPublished := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
+	if !v.Published.Equal(wantPublished) {
+		t.Errorf("Published = %v, want %v", v.Published, wantPublished)
+	}
+	if v.Summary != "Test vulnerability" {
+		t.Errorf("Summary = %q, want %q", v.Summary, "Test vulnerability")
+	}
+	if !v.SeverityBaseScore.Valid || v.SeverityBaseScore.Float64 != 9.8 {
+		t.Errorf("SeverityBaseScore = %v (valid=%v), want 9.8", v.SeverityBaseScore.Float64, v.SeverityBaseScore.Valid)
+	}
+	if v.SeverityVector != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
+		t.Errorf("SeverityVector = %q, want CVSS vector", v.SeverityVector)
 	}
 	if len(st.savedAffected) != 1 {
 		t.Fatalf("savedAffected count = %d, want 1", len(st.savedAffected))
 	}
-	if st.savedAffected[0].Ecosystem != "npm" || st.savedAffected[0].Package != "express" {
-		t.Errorf("savedAffected[0] = {%q, %q}, want {npm, express}", st.savedAffected[0].Ecosystem, st.savedAffected[0].Package)
+	a := st.savedAffected[0]
+	if a.VulnID != "GHSA-test-1" {
+		t.Errorf("savedAffected[0].VulnID = %q, want GHSA-test-1", a.VulnID)
+	}
+	if a.Ecosystem != "npm" || a.Package != "express" {
+		t.Errorf("savedAffected[0] = {%q, %q}, want {npm, express}", a.Ecosystem, a.Package)
 	}
 }
 
@@ -156,17 +175,28 @@ func TestProcessEntriesParallel_MultipleEntries_AllProcessed(t *testing.T) {
 	}
 
 	if len(st.savedVulns) != 3 {
-		t.Errorf("savedVulns count = %d, want 3", len(st.savedVulns))
+		t.Fatalf("savedVulns count = %d, want 3", len(st.savedVulns))
 	}
 
-	ids := make(map[string]bool)
+	vulnByID := make(map[string]store.Vulnerability)
 	for _, v := range st.savedVulns {
-		ids[v.ID] = true
+		vulnByID[v.ID] = v
 	}
 	for _, id := range []string{"V-1", "V-2", "V-3"} {
-		if !ids[id] {
+		if _, ok := vulnByID[id]; !ok {
 			t.Errorf("missing vuln ID %q in saved vulns", id)
 		}
+	}
+
+	affectedByVuln := make(map[string]store.Affected)
+	for _, a := range st.savedAffected {
+		affectedByVuln[a.VulnID] = a
+	}
+	if len(st.savedAffected) != 3 {
+		t.Fatalf("savedAffected count = %d, want 3", len(st.savedAffected))
+	}
+	if affectedByVuln["V-1"].Package != "p1" {
+		t.Errorf("V-1 affected package = %q, want p1", affectedByVuln["V-1"].Package)
 	}
 }
 

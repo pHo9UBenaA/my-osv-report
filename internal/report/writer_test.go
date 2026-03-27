@@ -3,6 +3,7 @@ package report_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/report"
@@ -38,8 +39,12 @@ func TestWriteCSV_ValidEntries_CreatesFile(t *testing.T) {
 		t.Fatalf("failed to read output file: %v", err)
 	}
 
-	if len(data) == 0 {
-		t.Errorf("output file is empty")
+	content := string(data)
+	if !strings.Contains(content, "ecosystem,package,id,published,modified,severity_base_score,severity_vector") {
+		t.Error("output file missing CSV header")
+	}
+	if !strings.Contains(content, "GHSA-test-1234") {
+		t.Error("output file missing vulnerability ID")
 	}
 }
 
