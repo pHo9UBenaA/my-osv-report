@@ -18,7 +18,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	if len(os.Args) < 2 {
-		app.ShowHelp()
+		showHelp()
 		os.Exit(0)
 	}
 
@@ -34,10 +34,10 @@ func main() {
 			log.Fatalf("error: %v", err)
 		}
 	case "help", "-h", "--help":
-		app.ShowHelp()
+		showHelp()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", cmd)
-		app.ShowHelp()
+		showHelp()
 		os.Exit(1)
 	}
 }

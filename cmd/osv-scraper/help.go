@@ -1,9 +1,9 @@
-package app
+package main
 
 import "fmt"
 
-// ShowHelp displays usage information.
-func ShowHelp() {
+// showHelp displays usage information.
+func showHelp() {
 	fmt.Print(`
 Work with the OSV vulnerability database from the command line.
 
