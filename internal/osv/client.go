@@ -231,7 +231,7 @@ func (c *Client) GetVulnerability(ctx context.Context, id string) (*model.Vulner
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck // read-only response body
+	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
