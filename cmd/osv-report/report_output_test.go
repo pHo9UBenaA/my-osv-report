@@ -23,7 +23,7 @@ func TestGenerateReport_Integration_OutputFileHasTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer func() { _ = st.Close() }()
+	defer st.Close() //nolint:errcheck
 
 	vuln := store.Vulnerability{
 		ID:                "GHSA-test-1234",
@@ -91,7 +91,7 @@ func TestGenerateReport_Integration_DiffModeUpdatesSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer func() { _ = st.Close() }()
+	defer st.Close() //nolint:errcheck
 
 	vuln1 := store.Vulnerability{
 		ID:                "GHSA-initial-1",
@@ -186,7 +186,7 @@ func TestGenerateReport_Integration_DiffModeRespectsEcosystemFilter(t *testing.T
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer func() { _ = st.Close() }()
+	defer st.Close() //nolint:errcheck
 
 	npmVuln := store.Vulnerability{
 		ID:                "GHSA-npm-1",

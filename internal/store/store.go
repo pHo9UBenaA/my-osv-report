@@ -75,14 +75,14 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
 	s := &Store{db: db}
 
 	if err := s.initSchema(ctx); err != nil {
-		_ = db.Close()
+		db.Close() //nolint:errcheck
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
 
@@ -348,7 +348,7 @@ func (s *Store) DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer tx.Rollback() //nolint:errcheck
 
 	cutoffStr := cutoff.Format(timeFormat)
 
@@ -415,7 +415,7 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []ReportRow) err
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer tx.Rollback() //nolint:errcheck
 
 	// Clear existing snapshot
 	_, err = tx.ExecContext(ctx, "DELETE FROM reported_snapshot")
@@ -431,7 +431,7 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []ReportRow) err
 	if err != nil {
 		return fmt.Errorf("prepare insert: %w", err)
 	}
-	defer func() { _ = stmt.Close() }()
+	defer stmt.Close() //nolint:errcheck
 
 	for _, e := range entries {
 		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, e.SeverityScore, toNullString(e.SeverityVector))
