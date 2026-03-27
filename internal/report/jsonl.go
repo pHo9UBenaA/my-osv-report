@@ -11,7 +11,7 @@ func FormatJSONL(entries []VulnerabilityEntry) (string, error) {
 	var sb strings.Builder
 
 	for _, e := range entries {
-		obj := map[string]any{
+		obj := map[string]string{
 			"ecosystem":           e.Ecosystem,
 			"package":             e.Package,
 			"id":                  e.ID,
