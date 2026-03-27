@@ -85,6 +85,11 @@ func TestValidate_EcosystemValidity(t *testing.T) {
 			wantErr: model.ErrInvalidEcosystem,
 		},
 		{
+			name:    "EcosystemWithSpace_ReturnsNil",
+			eco:     model.GitHubActions,
+			wantErr: nil,
+		},
+		{
 			name:    "EmptyString_ReturnsErrInvalidEcosystem",
 			eco:     model.Ecosystem(""),
 			wantErr: model.ErrInvalidEcosystem,
@@ -118,6 +123,12 @@ func TestParseEcosystems_InputVariants(t *testing.T) {
 			name:    "WhitespaceAroundEntries_TrimsAndParses",
 			input:   " npm , PyPI , Go ",
 			want:    []model.Ecosystem{model.NPM, model.PyPI, model.Go},
+			wantErr: nil,
+		},
+		{
+			name:    "EmptyString_ReturnsEmptySlice",
+			input:   "",
+			want:    []model.Ecosystem{},
 			wantErr: nil,
 		},
 		{

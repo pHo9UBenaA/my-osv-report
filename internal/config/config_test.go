@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/config"
@@ -66,5 +67,56 @@ func TestLoad_NonNumericRetentionDays_ReturnsError(t *testing.T) {
 	_, err := config.Load()
 	if err == nil {
 		t.Fatal("Load() should return error for invalid retention days")
+	}
+}
+
+func TestLoad_DotEnvFile_LoadsConfiguration(t *testing.T) {
+	tempDir := t.TempDir()
+
+	envContent := `OSV_ECOSYSTEMS=npm,Go
+OSV_DB_PATH=./dotenv.db
+OSV_DATA_RETENTION_DAYS=30`
+
+	envPath := filepath.Join(tempDir, ".env")
+	if err := os.WriteFile(envPath, []byte(envContent), 0644); err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Errorf("Failed to restore directory: %v", err)
+		}
+	}()
+
+	os.Clearenv()
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.DBPath != "./dotenv.db" {
+		t.Errorf("DBPath = %q, want %q", cfg.DBPath, "./dotenv.db")
+	}
+
+	want := []model.Ecosystem{model.NPM, model.Go}
+	if len(cfg.Ecosystems) != len(want) {
+		t.Fatalf("Ecosystems length = %d, want %d", len(cfg.Ecosystems), len(want))
+	}
+	for i, eco := range cfg.Ecosystems {
+		if eco != want[i] {
+			t.Errorf("Ecosystems[%d] = %v, want %v", i, eco, want[i])
+		}
+	}
+
+	if cfg.RetentionDays != 30 {
+		t.Errorf("RetentionDays = %d, want 30", cfg.RetentionDays)
 	}
 }

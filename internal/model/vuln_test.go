@@ -78,6 +78,15 @@ func TestMaxModified_InputVariants(t *testing.T) {
 			entries: nil,
 			want:    time.Time{},
 		},
+		{
+			name: "UnsortedEntries_StillReturnsMax",
+			entries: []model.Entry{
+				{ID: "GHSA-0003", Modified: mustParseTime("2025-10-04T13:00:00Z")},
+				{ID: "GHSA-0001", Modified: mustParseTime("2025-10-04T09:00:00Z")},
+				{ID: "GHSA-0002", Modified: mustParseTime("2025-10-04T11:00:00Z")},
+			},
+			want: mustParseTime("2025-10-04T13:00:00Z"),
+		},
 	}
 
 	for _, tt := range cases {

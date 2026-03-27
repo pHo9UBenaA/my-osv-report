@@ -41,6 +41,27 @@ func TestGetVulnerability_StatusCodeHandling(t *testing.T) {
 			wantErrType: nil,
 		},
 		{
+			name: "DetailedResponse_DeserializesAllFields",
+			id:   "GHSA-detail-test",
+			serverResp: `{
+				"id": "GHSA-detail-test",
+				"modified": "2025-10-04T12:34:56Z",
+				"summary": "Test vulnerability",
+				"details": "Detailed description",
+				"affected": [
+					{
+						"package": {"ecosystem": "Go", "name": "github.com/test/pkg"}
+					}
+				],
+				"severity": [
+					{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
+				]
+			}`,
+			statusCode:  http.StatusOK,
+			wantErr:     false,
+			wantErrType: nil,
+		},
+		{
 			name:        "NonExistentID_ReturnsErrNotFound",
 			id:          "GHSA-0000-0000-0000",
 			serverResp:  "",
@@ -90,6 +111,18 @@ func TestGetVulnerability_StatusCodeHandling(t *testing.T) {
 			}
 			if vuln.ID != tt.id {
 				t.Errorf("vuln.ID = %q, want %q", vuln.ID, tt.id)
+			}
+
+			if tt.name == "DetailedResponse_DeserializesAllFields" {
+				if vuln.Summary != "Test vulnerability" {
+					t.Errorf("vuln.Summary = %q, want %q", vuln.Summary, "Test vulnerability")
+				}
+				if len(vuln.Affected) != 1 || vuln.Affected[0].Ecosystem != "Go" {
+					t.Errorf("vuln.Affected = %v, want 1 entry with ecosystem Go", vuln.Affected)
+				}
+				if len(vuln.Severity) != 1 || vuln.Severity[0].Type != "CVSS_V3" {
+					t.Errorf("vuln.Severity = %v, want 1 entry with type CVSS_V3", vuln.Severity)
+				}
 			}
 		})
 	}

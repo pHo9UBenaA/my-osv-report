@@ -110,6 +110,14 @@ func TestFetch_WithCursor_FiltersOlderEntries(t *testing.T) {
 	}
 }
 
+func TestNewSitemapFetcher_DefaultTimeout_Is30Seconds(t *testing.T) {
+	f := osv.NewSitemapFetcher("https://example.com")
+
+	if f.HTTPClientTimeout() != 30*time.Second {
+		t.Fatalf("default timeout = %v, want 30s", f.HTTPClientTimeout())
+	}
+}
+
 func TestFetch_ShortTimeout_ReturnsError(t *testing.T) {
 	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

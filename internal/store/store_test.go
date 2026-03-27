@@ -180,6 +180,78 @@ func TestSaveVulnerability_NullThenUpdate_SeverityFieldsPersist(t *testing.T) {
 	}
 }
 
+func TestSaveVulnerability_WithSummaryAndDetails_PersistsAllFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	ctx := context.Background()
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	defer s.Close()
+
+	vuln := store.Vulnerability{
+		ID:       "GHSA-detail-test",
+		Modified: time.Date(2025, 10, 4, 12, 34, 56, 0, time.UTC),
+		Summary:  "Test vulnerability summary",
+		Details:  "Detailed description of the vulnerability",
+	}
+
+	if err := s.SaveVulnerability(ctx, vuln); err != nil {
+		t.Fatalf("SaveVulnerability() error = %v", err)
+	}
+
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	defer db.Close()
+
+	var summary, details string
+	err = db.QueryRowContext(ctx, "SELECT summary, details FROM vulnerability WHERE id = ?", vuln.ID).Scan(&summary, &details)
+	if err != nil {
+		t.Fatalf("query summary/details: %v", err)
+	}
+
+	if summary != "Test vulnerability summary" {
+		t.Errorf("summary = %q, want %q", summary, "Test vulnerability summary")
+	}
+	if details != "Detailed description of the vulnerability" {
+		t.Errorf("details = %q, want %q", details, "Detailed description of the vulnerability")
+	}
+}
+
+func TestNewStore_SchemaIndexes_ExistAfterCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	ctx := context.Background()
+
+	s, err := store.NewStore(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	defer s.Close()
+
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("Open database error = %v", err)
+	}
+	defer db.Close()
+
+	indexes := []string{"idx_affected_ecosystem", "idx_vulnerability_modified"}
+	for _, idx := range indexes {
+		var count int
+		err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", idx).Scan(&count)
+		if err != nil {
+			t.Fatalf("Query index %s error = %v", idx, err)
+		}
+		if count != 1 {
+			t.Errorf("index %s not found", idx)
+		}
+	}
+}
+
 func TestSaveAffected_NewRecord_Persists(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")

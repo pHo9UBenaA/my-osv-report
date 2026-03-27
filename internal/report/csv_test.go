@@ -64,6 +64,24 @@ func TestFormatCSV_FormulaInjectionPrefixes_EscapedWithQuote(t *testing.T) {
 			},
 		},
 		{
+			name: "PlusPrefix_InPackageName",
+			entry: report.VulnerabilityEntry{
+				ID:             "GHSA-test-1234",
+				Ecosystem:      "npm",
+				Package:        "+malicious-package",
+				SeverityVector: "HIGH",
+			},
+		},
+		{
+			name: "MinusPrefix_InPackageName",
+			entry: report.VulnerabilityEntry{
+				ID:             "GHSA-test-1234",
+				Ecosystem:      "npm",
+				Package:        "-malicious-package",
+				SeverityVector: "HIGH",
+			},
+		},
+		{
 			name: "AtSignPrefix_InPackageName",
 			entry: report.VulnerabilityEntry{
 				ID:             "GHSA-test-1234",
