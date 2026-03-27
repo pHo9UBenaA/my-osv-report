@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI
+    permissions:
+      contents: read # needed for actions/checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: '${{ github.workspace }}/go.mod'
+          cache: true
+
+      - name: Install C toolchain (for mattn/go-sqlite3)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
+
+      - name: Install go-task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+        env:
+          GOTOOLCHAIN: auto
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+        env:
+          GOTOOLCHAIN: auto
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        env:
+          GOTOOLCHAIN: auto
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        env:
+          GOTOOLCHAIN: auto
+
+      - name: Run gofmt check
+        run: diff -u <(echo -n) <(gofmt -l .)
+
+      - name: Run goimports check
+        run: diff -u <(echo -n) <(goimports -l .)
+
+      - name: Run golangci-lint
+        run: golangci-lint run ./...
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Run test
+        run: go test -race -shuffle=on ./...
+
+      - name: Check go mod tidy
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+
+      - name: Run go mod verify
+        run: go mod verify
+
+      - name: Run govulncheck
+        run: govulncheck ./...
