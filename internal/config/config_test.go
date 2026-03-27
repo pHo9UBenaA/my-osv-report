@@ -10,10 +10,9 @@ import (
 )
 
 func TestLoad_AllEnvVarsSet_ReturnsPopulatedConfig(t *testing.T) {
-	os.Setenv("OSV_ECOSYSTEMS", "npm,PyPI,Go")
-	os.Setenv("OSV_DB_PATH", "./test.db")
-	os.Setenv("OSV_DATA_RETENTION_DAYS", "14")
-	defer os.Clearenv()
+	t.Setenv("OSV_ECOSYSTEMS", "npm,PyPI,Go")
+	t.Setenv("OSV_DB_PATH", "./test.db")
+	t.Setenv("OSV_DATA_RETENTION_DAYS", "14")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -62,7 +61,7 @@ func TestLoad_NoEnvVars_ReturnsDefaults(t *testing.T) {
 
 func TestLoad_NonNumericRetentionDays_ReturnsError(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("OSV_DATA_RETENTION_DAYS", "abc")
+	t.Setenv("OSV_DATA_RETENTION_DAYS", "abc")
 
 	_, err := config.Load()
 	if err == nil {

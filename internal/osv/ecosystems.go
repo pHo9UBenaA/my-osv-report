@@ -39,7 +39,7 @@ func (f *ecosystemsFetcher) FetchEcosystems(ctx context.Context) ([]string, erro
 	if err != nil {
 		return nil, fmt.Errorf("fetch ecosystems: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // read-only response body
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)

@@ -56,7 +56,11 @@ func runFetch() error {
 	if err != nil {
 		return fmt.Errorf("new store: %w", err)
 	}
-	defer st.Close()
+	defer func() {
+		if err := st.Close(); err != nil {
+			slog.Error("close store", "error", err)
+		}
+	}()
 
 	client := osv.NewClientWithOptions(config.APIBaseURL, config.RateLimit, config.HTTPTimeout)
 	lister := osv.NewEcosystemsFetcher(config.EcosystemsListURL, nil)
@@ -86,7 +90,11 @@ func runReport() error {
 	if err != nil {
 		return fmt.Errorf("new store: %w", err)
 	}
-	defer st.Close()
+	defer func() {
+		if err := st.Close(); err != nil {
+			slog.Error("close store", "error", err)
+		}
+	}()
 
 	return app.GenerateReport(ctx, st, app.ReportOptions{
 		Format:     *format,

@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/pHo9UBenaA/osv-report/internal/model"
 	"github.com/pHo9UBenaA/osv-report/internal/osv"
 	"github.com/pHo9UBenaA/osv-report/internal/store"
-	"golang.org/x/sync/errgroup"
 )
 
 // processEntries fetches vulnerabilities for each entry and stores them.

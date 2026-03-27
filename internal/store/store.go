@@ -75,14 +75,14 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck // best-effort cleanup on error path
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
 	s := &Store{db: db}
 
 	if err := s.initSchema(ctx); err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck // best-effort cleanup on error path
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
 
@@ -337,7 +337,7 @@ func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem strin
 	if err != nil {
 		return nil, fmt.Errorf("query vulnerabilities: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // rows.Close error is not actionable after read
 
 	return scanReportRows(rows)
 }
@@ -404,7 +404,7 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 	if err != nil {
 		return nil, fmt.Errorf("query unreported vulnerabilities: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // rows.Close error is not actionable after read
 
 	return scanReportRows(rows)
 }
@@ -431,7 +431,7 @@ func (s *Store) SaveReportSnapshot(ctx context.Context, entries []ReportRow) err
 	if err != nil {
 		return fmt.Errorf("prepare insert: %w", err)
 	}
-	defer stmt.Close()
+	defer stmt.Close() //nolint:errcheck // stmt.Close error is not actionable
 
 	for _, e := range entries {
 		_, err = stmt.ExecContext(ctx, e.ID, e.Ecosystem, e.Package, e.Published, e.Modified, e.SeverityScore, toNullString(e.SeverityVector))

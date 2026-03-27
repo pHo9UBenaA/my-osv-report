@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+
 	"github.com/pHo9UBenaA/osv-report/internal/model"
 )
 

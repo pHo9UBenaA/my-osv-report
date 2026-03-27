@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pHo9UBenaA/osv-report/internal/model"
 	"golang.org/x/time/rate"
+
+	"github.com/pHo9UBenaA/osv-report/internal/model"
 )
 
 const (
@@ -230,7 +231,7 @@ func (c *Client) GetVulnerability(ctx context.Context, id string) (*model.Vulner
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // read-only response body
 
 	switch resp.StatusCode {
 	case http.StatusOK:

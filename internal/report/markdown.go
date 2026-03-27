@@ -48,8 +48,8 @@ func FormatMarkdown(entries []VulnerabilityEntry) string {
 		severityBase := formatBaseScore(e.SeverityBaseScore)
 		severityVector := escapeMarkdown(formatString(e.SeverityVector))
 
-		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s |\n",
-			ecosystem, pkg, id, published, modified, severityBase, severityVector))
+		fmt.Fprintf(&sb, "| %s | %s | %s | %s | %s | %s | %s |\n",
+			ecosystem, pkg, id, published, modified, severityBase, severityVector)
 	}
 
 	return sb.String()

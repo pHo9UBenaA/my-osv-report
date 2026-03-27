@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/pHo9UBenaA/osv-report/internal/store"
 )
 
@@ -23,7 +24,7 @@ func TestNewStore_ValidPath_CreatesDatabaseFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		t.Errorf("database file was not created at %s", dbPath)
@@ -39,7 +40,7 @@ func TestSaveThenGetCursor_ReturnsSavedTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	source := "test-ecosystem"
 	cursor := time.Date(2025, 10, 4, 12, 0, 0, 0, time.UTC)
@@ -67,7 +68,7 @@ func TestGetCursor_ErrorConditions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	t.Run("NonExistentSource_ReturnsNoRowsError", func(t *testing.T) {
 		_, err := s.GetCursor(ctx, "non-existent-source")
@@ -82,7 +83,7 @@ func TestGetCursor_ErrorConditions(t *testing.T) {
 
 	t.Run("DBError_DistinguishedFromNoRows", func(t *testing.T) {
 		originalStore := s
-		s.Close()
+		s.Close() //nolint:errcheck // test cleanup
 
 		_, err := originalStore.GetCursor(ctx, "any-source")
 		if err == nil {
@@ -104,7 +105,7 @@ func TestSaveVulnerability_NewEntry_PersistsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	vuln := store.Vulnerability{
 		ID:       "GHSA-xxxx-yyyy-zzzz",
@@ -129,7 +130,7 @@ func TestSaveVulnerability_NullThenUpdate_SeverityFieldsPersist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	vulnID := "GHSA-severity-check"
 	modified := time.Date(2025, 10, 4, 12, 0, 0, 0, time.UTC)
@@ -142,7 +143,7 @@ func TestSaveVulnerability_NullThenUpdate_SeverityFieldsPersist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // test cleanup
 
 	var base sql.NullFloat64
 	var vector sql.NullString
@@ -189,7 +190,7 @@ func TestSaveVulnerability_WithSummaryAndDetails_PersistsAllFields(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	vuln := store.Vulnerability{
 		ID:       "GHSA-detail-test",
@@ -206,7 +207,7 @@ func TestSaveVulnerability_WithSummaryAndDetails_PersistsAllFields(t *testing.T)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // test cleanup
 
 	var summary, details string
 	err = db.QueryRowContext(ctx, "SELECT summary, details FROM vulnerability WHERE id = ?", vuln.ID).Scan(&summary, &details)
@@ -231,13 +232,13 @@ func TestNewStore_SchemaIndexes_ExistAfterCreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("Open database error = %v", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // test cleanup
 
 	indexes := []string{"idx_affected_ecosystem", "idx_vulnerability_modified"}
 	for _, idx := range indexes {
@@ -261,7 +262,7 @@ func TestSaveAffected_NewRecord_Persists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	affected := store.Affected{
 		VulnID:    "GHSA-test-affected",
@@ -283,7 +284,7 @@ func TestSaveTombstone_NewAndDuplicate_PersistsIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	id := "GHSA-deleted-vuln"
 
@@ -305,7 +306,7 @@ func TestDeleteVulnerabilitiesOlderThan_MixedAges_RemovesOnlyOld(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	oldTime := time.Now().AddDate(0, 0, -14)
 	oldVuln := store.Vulnerability{
@@ -352,7 +353,7 @@ func TestDeleteVulnerabilitiesOlderThan_MixedAges_RemovesOnlyOld(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // test cleanup
 
 	var oldCount int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM vulnerability WHERE id = ?", "GHSA-old-vuln").Scan(&oldCount)
@@ -400,7 +401,7 @@ func TestGetVulnerabilitiesForReport_MultipleEcosystems_FiltersCorrectly(t *test
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	vuln1 := store.Vulnerability{
 		ID:                "GHSA-1234-5678-90ab",
@@ -483,7 +484,7 @@ func TestGetVulnerabilitiesForReport_DifferentDates_SortsByPublishedDescending(t
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	oldestPublished := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
 	middlePublished := time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC)
@@ -542,7 +543,7 @@ func TestSaveReportSnapshot_ReplaceExisting_ContainsOnlyNewEntries(t *testing.T)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	entries := []store.ReportRow{
 		{
@@ -572,7 +573,7 @@ func TestSaveReportSnapshot_ReplaceExisting_ContainsOnlyNewEntries(t *testing.T)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // test cleanup
 
 	var count int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM reported_snapshot").Scan(&count)
@@ -618,7 +619,7 @@ func TestGetUnreportedVulnerabilities_MixedState_ReturnsModifiedAndNew(t *testin
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
-	defer s.Close()
+	defer s.Close() //nolint:errcheck // test cleanup
 
 	vuln1 := store.Vulnerability{
 		ID:                "GHSA-unchanged",
