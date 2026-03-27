@@ -23,12 +23,13 @@ REPORT FLAGS
   --diff:                  Generate differential report (only new/changed vulnerabilities)
 
 ENVIRONMENT VARIABLES
-  OSV_ECOSYSTEMS           Comma-separated ecosystems (e.g. npm,pypi,go)
+  OSV_ECOSYSTEMS           Comma-separated ecosystems (e.g. npm,PyPI,Go)
+                           Full list: https://osv-vulnerabilities.storage.googleapis.com/ecosystems.txt
   OSV_DB_PATH              Path to the local database (default: ./osv.db)
   OSV_DATA_RETENTION_DAYS  Data retention period in days (default: 7)
 
 EXAMPLES
-  $ OSV_ECOSYSTEMS=npm,pypi osv-report fetch
+  $ OSV_ECOSYSTEMS=npm,PyPI osv-report fetch
   $ osv-report report --format markdown --output-dir . --file-prefix report
   $ osv-report report --diff --format csv --ecosystem npm --output-dir ./reports --file-prefix npm-vuln
 
