@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	APIBaseURL     = "https://api.osv.dev"
-	RateLimit      = 10.0 // requests per second
-	MaxConcurrency = 5
-	BatchSize      = 100
-	HTTPTimeout    = 30 * time.Second
+	APIBaseURL        = "https://api.osv.dev"
+	EcosystemsListURL = "https://osv-vulnerabilities.storage.googleapis.com/ecosystems.txt"
+	RateLimit         = 10.0 // requests per second
+	MaxConcurrency    = 5
+	BatchSize         = 100
+	HTTPTimeout       = 30 * time.Second
 
 	defaultDBPath        = "./osv.db"
 	defaultRetentionDays = 7
@@ -32,10 +33,7 @@ type Config struct {
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
-	ecosystems, err := model.ParseEcosystems(os.Getenv("OSV_ECOSYSTEMS"))
-	if err != nil {
-		return nil, err
-	}
+	ecosystems := model.ParseEcosystems(os.Getenv("OSV_ECOSYSTEMS"))
 
 	retentionDays, err := getEnvInt("OSV_DATA_RETENTION_DAYS", defaultRetentionDays)
 	if err != nil {

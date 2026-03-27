@@ -19,6 +19,11 @@ type Client interface {
 	GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error)
 }
 
+// EcosystemLister fetches the canonical list of OSV ecosystems.
+type EcosystemLister interface {
+	FetchEcosystems(ctx context.Context) ([]string, error)
+}
+
 // FetchStore defines the store operations needed by the fetch workflow.
 type FetchStore interface {
 	GetCursor(ctx context.Context, source string) (time.Time, error)
@@ -30,10 +35,19 @@ type FetchStore interface {
 }
 
 // Fetch retrieves vulnerability data from OSV API for configured ecosystems.
-func Fetch(ctx context.Context, cfg *config.Config, client Client, st FetchStore) error {
+func Fetch(ctx context.Context, cfg *config.Config, client Client, st FetchStore, lister EcosystemLister) error {
 	if len(cfg.Ecosystems) == 0 {
 		slog.Warn("no ecosystems configured, set OSV_ECOSYSTEMS environment variable")
 		return nil
+	}
+
+	allowList, err := lister.FetchEcosystems(ctx)
+	if err != nil {
+		return fmt.Errorf("fetch canonical ecosystem list: %w", err)
+	}
+
+	if err := model.ValidateEcosystems(cfg.Ecosystems, allowList); err != nil {
+		return fmt.Errorf("validate ecosystems: %w", err)
 	}
 
 	slog.Info("starting vulnerability fetch", "ecosystems", cfg.Ecosystems)

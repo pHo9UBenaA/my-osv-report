@@ -59,7 +59,8 @@ func runFetch() error {
 	defer st.Close()
 
 	client := osv.NewClientWithOptions(config.APIBaseURL, config.RateLimit, config.HTTPTimeout)
-	return app.Fetch(ctx, cfg, client, st)
+	lister := osv.NewEcosystemsFetcher(config.EcosystemsListURL, nil)
+	return app.Fetch(ctx, cfg, client, st, lister)
 }
 
 func runReport() error {
