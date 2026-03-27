@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -81,11 +82,27 @@ func toModelVulnerability(v *jsonVulnerability) *model.Vulnerability {
 	}
 }
 
+// rateLimitedTransport wraps an http.RoundTripper with rate limiting.
+// This ensures rate limiting is applied to every HTTP request including retries.
+type rateLimitedTransport struct {
+	base    http.RoundTripper
+	limiter limiter
+}
+
+func (t *rateLimitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.limiter != nil {
+		if err := t.limiter.Wait(req.Context()); err != nil {
+			return nil, fmt.Errorf("rate limit wait: %w", err)
+		}
+	}
+	return t.base.RoundTrip(req)
+}
+
 // Client is an HTTP client for the OSV API.
 type Client struct {
 	baseURL     string
 	retryClient *retryablehttp.Client
-	limiter     limiter
+	transport   *rateLimitedTransport
 }
 
 type limiter interface {
@@ -108,10 +125,10 @@ type ClientOption func(*Client)
 func WithLimiterWaitFunc(wait func(context.Context) error) ClientOption {
 	return func(c *Client) {
 		if wait == nil {
-			c.limiter = nil
+			c.transport.limiter = nil
 			return
 		}
-		c.limiter = limiterFunc(wait)
+		c.transport.limiter = limiterFunc(wait)
 	}
 }
 
@@ -129,15 +146,28 @@ func WithBackoff(fn func(attemptNum int, resp *http.Response) time.Duration) Cli
 	}
 }
 
-// checkRetryPolicy retries only on HTTP 429 Too Many Requests.
-func checkRetryPolicy(_ context.Context, resp *http.Response, err error) (bool, error) {
+// checkRetryPolicy retries on HTTP 429 and transient network errors.
+// Timeouts are not retried to avoid excessive delays.
+func checkRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	if err != nil {
-		return false, err
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) && urlErr.Timeout() {
+			return false, err
+		}
+		return true, nil
 	}
 	return resp.StatusCode == http.StatusTooManyRequests, nil
 }
 
 func newClient(baseURL string, timeout time.Duration, lim limiter, opts ...ClientOption) *Client {
+	transport := &rateLimitedTransport{
+		base:    http.DefaultTransport,
+		limiter: lim,
+	}
+
 	rc := retryablehttp.NewClient()
 	rc.RetryMax = defaultRetryMax
 	rc.RetryWaitMin = 1 * time.Second
@@ -145,12 +175,15 @@ func newClient(baseURL string, timeout time.Duration, lim limiter, opts ...Clien
 	rc.Logger = nil
 	rc.CheckRetry = checkRetryPolicy
 	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
-	rc.HTTPClient.Timeout = timeout
+	rc.HTTPClient = &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
 
 	c := &Client{
 		baseURL:     baseURL,
 		retryClient: rc,
-		limiter:     lim,
+		transport:   transport,
 	}
 
 	for _, opt := range opts {
@@ -181,17 +214,14 @@ func NewClientWithOptions(baseURL string, ratePerSecond float64, timeout time.Du
 }
 
 // GetVulnerability fetches a vulnerability by ID from the OSV API.
-// Retries automatically on HTTP 429 using exponential backoff with Retry-After support.
+// Retries automatically on HTTP 429 and transient network errors
+// using exponential backoff with Retry-After support.
+// Rate limiting is applied per-request at the transport level,
+// including retry attempts.
 func (c *Client) GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error) {
-	if c.limiter != nil {
-		if err := c.limiter.Wait(ctx); err != nil {
-			return nil, fmt.Errorf("rate limit wait: %w", err)
-		}
-	}
+	reqURL := fmt.Sprintf("%s/v1/vulns/%s", c.baseURL, id)
 
-	url := fmt.Sprintf("%s/v1/vulns/%s", c.baseURL, id)
-
-	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
