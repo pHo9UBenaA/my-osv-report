@@ -5,8 +5,7 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
-	"github.com/pHo9UBenaA/osv-scraper/internal/severity"
+	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
@@ -15,8 +14,8 @@ type storeAdapter struct {
 	st *store.Store
 }
 
-func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerability) error {
-	baseScore, vector, err := severity.ExtractFromOSV(vuln.Severity)
+func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *model.Vulnerability) error {
+	baseScore, vector, err := model.ExtractFromOSV(vuln.Severity)
 	if err != nil {
 		slog.Debug("parse severity", "id", vuln.ID, "vector", vector, "err", err)
 	}

@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
-type storeAdapter struct {
+type scraperStoreAdapter struct {
 	s *store.Store
 }
 
-func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerability) error {
+func (a *scraperStoreAdapter) SaveVulnerability(ctx context.Context, vuln *model.Vulnerability) error {
 	vector := ""
 	if len(vuln.Severity) > 0 {
 		vector = vuln.Severity[0].Score
@@ -33,7 +34,7 @@ func (a *storeAdapter) SaveVulnerability(ctx context.Context, vuln *osv.Vulnerab
 	})
 }
 
-func (a *storeAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error {
+func (a *scraperStoreAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error {
 	return a.s.SaveAffected(ctx, store.Affected{
 		VulnID:    vulnID,
 		Ecosystem: ecosystem,
@@ -41,7 +42,7 @@ func (a *storeAdapter) SaveAffected(ctx context.Context, vulnID, ecosystem, pkg 
 	})
 }
 
-func (a *storeAdapter) SaveTombstone(ctx context.Context, id string) error {
+func (a *scraperStoreAdapter) SaveTombstone(ctx context.Context, id string) error {
 	return a.s.SaveTombstone(ctx, id)
 }
 
@@ -70,10 +71,10 @@ func TestProcessEntries(t *testing.T) {
 	defer server.Close()
 
 	client := osv.NewClient(server.URL)
-	adapter := &storeAdapter{s: st}
+	adapter := &scraperStoreAdapter{s: st}
 	scraper := osv.NewScraper(client, adapter)
 
-	entries := []osv.Entry{
+	entries := []model.Entry{
 		{ID: "GHSA-found", Modified: time.Date(2025, 10, 4, 12, 0, 0, 0, time.UTC)},
 		{ID: "GHSA-deleted", Modified: time.Date(2025, 10, 4, 11, 0, 0, 0, time.UTC)},
 	}
@@ -106,13 +107,13 @@ func TestProcessEntriesParallel(t *testing.T) {
 	defer server.Close()
 
 	client := osv.NewClient(server.URL)
-	adapter := &storeAdapter{s: st}
+	adapter := &scraperStoreAdapter{s: st}
 	scraper := osv.NewScraper(client, adapter)
 
 	// Create 10 entries to test parallel processing
-	entries := make([]osv.Entry, 10)
+	entries := make([]model.Entry, 10)
 	for i := 0; i < 10; i++ {
-		entries[i] = osv.Entry{
+		entries[i] = model.Entry{
 			ID:       "GHSA-test-" + strings.Repeat("x", i+1),
 			Modified: time.Date(2025, 10, 4, 12, 0, 0, 0, time.UTC),
 		}

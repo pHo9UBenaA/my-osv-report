@@ -117,11 +117,11 @@ func TestGetVulnerability(t *testing.T) {
 				if len(vuln.Affected) != 1 {
 					t.Errorf("len(vuln.Affected) = %d, want 1", len(vuln.Affected))
 				}
+				if vuln.Affected[0].Ecosystem != "Go" {
+					t.Errorf("vuln.Affected[0].Ecosystem = %q, want %q", vuln.Affected[0].Ecosystem, "Go")
+				}
 				if len(vuln.Severity) != 1 {
 					t.Errorf("len(vuln.Severity) = %d, want 1", len(vuln.Severity))
-				}
-				if len(vuln.References) != 1 {
-					t.Errorf("len(vuln.References) = %d, want 1", len(vuln.References))
 				}
 			}
 		})

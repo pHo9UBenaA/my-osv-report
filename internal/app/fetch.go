@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/config"
-	"github.com/pHo9UBenaA/osv-scraper/internal/fetcher"
+	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
@@ -69,7 +69,7 @@ func processEcosystem(ctx context.Context, eco interface {
 		slog.Info("resuming from cursor", "ecosystem", source, "cursor", lastCursor)
 	}
 
-	sitemapFetcher := fetcher.NewSitemapFetcher(eco.SitemapURL(), fetcher.WithCursor(lastCursor))
+	sitemapFetcher := osv.NewSitemapFetcher(eco.SitemapURL(), osv.WithSitemapCursor(lastCursor))
 	entries, err := sitemapFetcher.Fetch(ctx)
 	if err != nil {
 		return fmt.Errorf("fetch sitemap: %w", err)
@@ -77,7 +77,7 @@ func processEcosystem(ctx context.Context, eco interface {
 
 	slog.Info("fetched entries from sitemap", "ecosystem", source, "count", len(entries))
 
-	retentionFiltered := osv.FilterByCursor(entries, retentionCutoff)
+	retentionFiltered := model.FilterByCursor(entries, retentionCutoff)
 	slog.Info("filtered by retention", "ecosystem", source, "count", len(retentionFiltered), "cutoff", retentionCutoff)
 
 	if len(retentionFiltered) == 0 {

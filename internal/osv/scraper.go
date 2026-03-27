@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 	"golang.org/x/sync/errgroup"
 )
 
 // Store defines the minimal interface for storing vulnerability data.
 type Store interface {
-	SaveVulnerability(ctx context.Context, vuln *Vulnerability) error
+	SaveVulnerability(ctx context.Context, vuln *model.Vulnerability) error
 	SaveAffected(ctx context.Context, vulnID, ecosystem, pkg string) error
 	SaveTombstone(ctx context.Context, id string) error
 }
@@ -30,7 +31,7 @@ func NewScraper(client *Client, store Store) *Scraper {
 }
 
 // ProcessEntries fetches vulnerabilities for each entry and stores them.
-func (s *Scraper) ProcessEntries(ctx context.Context, entries []Entry) error {
+func (s *Scraper) ProcessEntries(ctx context.Context, entries []model.Entry) error {
 	for _, entry := range entries {
 		if err := s.processEntry(ctx, entry); err != nil {
 			return fmt.Errorf("process entry %s: %w", entry.ID, err)
@@ -40,7 +41,7 @@ func (s *Scraper) ProcessEntries(ctx context.Context, entries []Entry) error {
 }
 
 // ProcessEntriesParallel fetches vulnerabilities in parallel with controlled concurrency.
-func (s *Scraper) ProcessEntriesParallel(ctx context.Context, entries []Entry, maxConcurrency int) error {
+func (s *Scraper) ProcessEntriesParallel(ctx context.Context, entries []model.Entry, maxConcurrency int) error {
 	// If maxConcurrency <= 0, falls back to serial execution.
 	if maxConcurrency <= 0 {
 		return s.ProcessEntries(ctx, entries)
@@ -62,7 +63,7 @@ func (s *Scraper) ProcessEntriesParallel(ctx context.Context, entries []Entry, m
 	return g.Wait()
 }
 
-func (s *Scraper) processEntry(ctx context.Context, entry Entry) error {
+func (s *Scraper) processEntry(ctx context.Context, entry model.Entry) error {
 	vuln, err := s.client.GetVulnerability(ctx, entry.ID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -76,7 +77,7 @@ func (s *Scraper) processEntry(ctx context.Context, entry Entry) error {
 	}
 
 	for _, affected := range vuln.Affected {
-		if err := s.store.SaveAffected(ctx, vuln.ID, affected.Package.Ecosystem, affected.Package.Name); err != nil {
+		if err := s.store.SaveAffected(ctx, vuln.ID, affected.Ecosystem, affected.Name); err != nil {
 			return fmt.Errorf("save affected: %w", err)
 		}
 	}

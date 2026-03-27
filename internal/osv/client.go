@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 	"golang.org/x/time/rate"
 )
 
@@ -22,52 +23,62 @@ var ErrBadRequest = errors.New("bad request")
 // ErrTooManyRequests is returned when rate limit is exceeded (429).
 var ErrTooManyRequests = errors.New("too many requests")
 
-// Package represents a package in an affected entry.
-type Package struct {
+// Severity is kept exported for backward compatibility with internal/severity/.
+// It will be removed when internal/severity/ is deleted in Wave 5.
+type Severity = jsonSeverity
+
+// JSON wire types for OSV API deserialization (unexported).
+
+type jsonPackage struct {
 	Ecosystem string `json:"ecosystem"`
 	Name      string `json:"name"`
 }
 
-// Event represents a version event in a range.
-type Event struct {
-	Introduced string `json:"introduced,omitempty"`
-	Fixed      string `json:"fixed,omitempty"`
+type jsonAffected struct {
+	Package jsonPackage `json:"package"`
 }
 
-// Range represents a version range.
-type Range struct {
-	Type   string  `json:"type"`
-	Events []Event `json:"events"`
-}
-
-// Affected represents affected packages and versions.
-type Affected struct {
-	Package Package `json:"package"`
-	Ranges  []Range `json:"ranges,omitempty"`
-}
-
-// Severity represents severity information.
-type Severity struct {
+type jsonSeverity struct {
 	Type  string `json:"type"`
 	Score string `json:"score"`
 }
 
-// Reference represents a reference link.
-type Reference struct {
-	Type string `json:"type"`
-	URL  string `json:"url"`
+type jsonVulnerability struct {
+	ID        string         `json:"id"`
+	Modified  time.Time      `json:"modified"`
+	Published time.Time      `json:"published,omitempty"`
+	Summary   string         `json:"summary,omitempty"`
+	Details   string         `json:"details,omitempty"`
+	Affected  []jsonAffected `json:"affected,omitempty"`
+	Severity  []jsonSeverity `json:"severity,omitempty"`
 }
 
-// Vulnerability represents a vulnerability from the OSV API.
-type Vulnerability struct {
-	ID         string      `json:"id"`
-	Modified   time.Time   `json:"modified"`
-	Published  time.Time   `json:"published,omitempty"`
-	Summary    string      `json:"summary,omitempty"`
-	Details    string      `json:"details,omitempty"`
-	Affected   []Affected  `json:"affected,omitempty"`
-	Severity   []Severity  `json:"severity,omitempty"`
-	References []Reference `json:"references,omitempty"`
+func toModelVulnerability(v *jsonVulnerability) *model.Vulnerability {
+	affected := make([]model.AffectedPackage, len(v.Affected))
+	for i, a := range v.Affected {
+		affected[i] = model.AffectedPackage{
+			Ecosystem: a.Package.Ecosystem,
+			Name:      a.Package.Name,
+		}
+	}
+
+	severity := make([]model.SeverityEntry, len(v.Severity))
+	for i, s := range v.Severity {
+		severity[i] = model.SeverityEntry{
+			Type:  s.Type,
+			Score: s.Score,
+		}
+	}
+
+	return &model.Vulnerability{
+		ID:        v.ID,
+		Modified:  v.Modified,
+		Published: v.Published,
+		Summary:   v.Summary,
+		Details:   v.Details,
+		Affected:  affected,
+		Severity:  severity,
+	}
 }
 
 // Client is an HTTP client for the OSV API.
@@ -159,7 +170,7 @@ func NewClientWithOptions(baseURL string, ratePerSecond float64, timeout time.Du
 }
 
 // GetVulnerability fetches a vulnerability by ID from the OSV API with automatic retry on 429.
-func (c *Client) GetVulnerability(ctx context.Context, id string) (*Vulnerability, error) {
+func (c *Client) GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error) {
 	const maxRetries = 3
 	var lastErr error
 
@@ -189,7 +200,7 @@ func (c *Client) GetVulnerability(ctx context.Context, id string) (*Vulnerabilit
 	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 
-func (c *Client) getVulnerabilityOnce(ctx context.Context, id string) (*Vulnerability, error) {
+func (c *Client) getVulnerabilityOnce(ctx context.Context, id string) (*model.Vulnerability, error) {
 	// Apply rate limiting if configured
 	if c.limiter != nil {
 		if err := c.limiter.Wait(ctx); err != nil {
@@ -226,10 +237,10 @@ func (c *Client) getVulnerabilityOnce(ctx context.Context, id string) (*Vulnerab
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var vuln Vulnerability
+	var vuln jsonVulnerability
 	if err := json.NewDecoder(resp.Body).Decode(&vuln); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return &vuln, nil
+	return toModelVulnerability(&vuln), nil
 }
