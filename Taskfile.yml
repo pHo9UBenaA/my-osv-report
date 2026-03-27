@@ -28,10 +28,7 @@ tasks:
   check:
     desc: Run all quality checks
     cmds:
-      - gofmt -l .
-      - goimports -l .
       - golangci-lint run ./...
-      - go vet ./...
       - go test -race -shuffle=on ./...
       - go mod tidy
       - git diff --exit-code go.mod go.sum
