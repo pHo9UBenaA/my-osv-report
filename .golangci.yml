@@ -1,5 +1,15 @@
 version: "2"
 
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        # Read-only HTTP response body — error is not actionable.
+        - (*net/http.Response).Body.Close
+        - (io.ReadCloser).Close
+        # rows.Close after full iteration — error check via rows.Err().
+        - (*database/sql.Rows).Close
+
 formatters:
   enable:
     - gofmt

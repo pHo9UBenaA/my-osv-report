@@ -140,7 +140,7 @@ func sitemapHTTPGet(ctx context.Context, client *http.Client, url string) ([]byt
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)

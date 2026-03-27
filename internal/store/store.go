@@ -337,7 +337,7 @@ func (s *Store) GetVulnerabilitiesForReport(ctx context.Context, ecosystem strin
 	if err != nil {
 		return nil, fmt.Errorf("query vulnerabilities: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Close()
 
 	return scanReportRows(rows)
 }
@@ -404,7 +404,7 @@ func (s *Store) GetUnreportedVulnerabilities(ctx context.Context, ecosystem stri
 	if err != nil {
 		return nil, fmt.Errorf("query unreported vulnerabilities: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Close()
 
 	return scanReportRows(rows)
 }
