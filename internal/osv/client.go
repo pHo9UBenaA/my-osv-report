@@ -8,11 +8,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 	"golang.org/x/time/rate"
 )
 
-const defaultHTTPClientTimeout = 30 * time.Second
+const (
+	defaultHTTPClientTimeout = 30 * time.Second
+	defaultRetryMax          = 2 // 3 total attempts (1 initial + 2 retries)
+)
 
 // ErrNotFound is returned when a vulnerability is not found (404).
 var ErrNotFound = errors.New("not found")
@@ -79,10 +83,9 @@ func toModelVulnerability(v *jsonVulnerability) *model.Vulnerability {
 
 // Client is an HTTP client for the OSV API.
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	limiter    limiter
-	timeAfter  func(time.Duration) <-chan time.Time
+	baseURL     string
+	retryClient *retryablehttp.Client
+	limiter     limiter
 }
 
 type limiter interface {
@@ -112,23 +115,42 @@ func WithLimiterWaitFunc(wait func(context.Context) error) ClientOption {
 	}
 }
 
-// WithBackoffAfterFunc overrides the backoff timer factory used for retries.
-func WithBackoffAfterFunc(after func(time.Duration) <-chan time.Time) ClientOption {
+// WithBackoff sets a custom backoff strategy for retries.
+// The function receives the attempt number (0-based) and the HTTP response,
+// and returns the duration to wait before the next retry.
+func WithBackoff(fn func(attemptNum int, resp *http.Response) time.Duration) ClientOption {
 	return func(c *Client) {
-		if after == nil {
-			c.timeAfter = time.After
+		if fn == nil {
 			return
 		}
-		c.timeAfter = after
+		c.retryClient.Backoff = func(_, _ time.Duration, attemptNum int, resp *http.Response) time.Duration {
+			return fn(attemptNum, resp)
+		}
 	}
 }
 
-func newClient(baseURL string, httpClient *http.Client, lim limiter, opts ...ClientOption) *Client {
+// checkRetryPolicy retries only on HTTP 429 Too Many Requests.
+func checkRetryPolicy(_ context.Context, resp *http.Response, err error) (bool, error) {
+	if err != nil {
+		return false, err
+	}
+	return resp.StatusCode == http.StatusTooManyRequests, nil
+}
+
+func newClient(baseURL string, timeout time.Duration, lim limiter, opts ...ClientOption) *Client {
+	rc := retryablehttp.NewClient()
+	rc.RetryMax = defaultRetryMax
+	rc.RetryWaitMin = 1 * time.Second
+	rc.RetryWaitMax = 30 * time.Second
+	rc.Logger = nil
+	rc.CheckRetry = checkRetryPolicy
+	rc.ErrorHandler = retryablehttp.PassthroughErrorHandler
+	rc.HTTPClient.Timeout = timeout
+
 	c := &Client{
-		baseURL:    baseURL,
-		httpClient: httpClient,
-		limiter:    lim,
-		timeAfter:  time.After,
+		baseURL:     baseURL,
+		retryClient: rc,
+		limiter:     lim,
 	}
 
 	for _, opt := range opts {
@@ -137,67 +159,30 @@ func newClient(baseURL string, httpClient *http.Client, lim limiter, opts ...Cli
 		}
 	}
 
-	if c.httpClient == nil {
-		c.httpClient = &http.Client{Timeout: defaultHTTPClientTimeout}
-	}
-	if c.timeAfter == nil {
-		c.timeAfter = time.After
-	}
-
 	return c
 }
 
 // NewClient creates a new OSV API client without rate limiting.
 func NewClient(baseURL string, opts ...ClientOption) *Client {
-	return newClient(baseURL, &http.Client{Timeout: defaultHTTPClientTimeout}, nil, opts...)
+	return newClient(baseURL, defaultHTTPClientTimeout, nil, opts...)
 }
 
 // NewClientWithRateLimit creates a new OSV API client with rate limiting.
 // ratePerSecond specifies the maximum number of requests per second.
 func NewClientWithRateLimit(baseURL string, ratePerSecond float64, opts ...ClientOption) *Client {
 	lim := rate.NewLimiter(rate.Limit(ratePerSecond), 1)
-	return newClient(baseURL, &http.Client{Timeout: defaultHTTPClientTimeout}, lim, opts...)
+	return newClient(baseURL, defaultHTTPClientTimeout, lim, opts...)
 }
 
 // NewClientWithOptions creates a new OSV API client with custom options.
 func NewClientWithOptions(baseURL string, ratePerSecond float64, timeout time.Duration, opts ...ClientOption) *Client {
 	lim := rate.NewLimiter(rate.Limit(ratePerSecond), 1)
-	return newClient(baseURL, &http.Client{Timeout: timeout}, lim, opts...)
+	return newClient(baseURL, timeout, lim, opts...)
 }
 
-// GetVulnerability fetches a vulnerability by ID from the OSV API with automatic retry on 429.
+// GetVulnerability fetches a vulnerability by ID from the OSV API.
+// Retries automatically on HTTP 429 using exponential backoff with Retry-After support.
 func (c *Client) GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error) {
-	const maxRetries = 3
-	var lastErr error
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		vuln, err := c.getVulnerabilityOnce(ctx, id)
-		if err == nil {
-			return vuln, nil
-		}
-
-		// If error is not 429, return immediately
-		if !errors.Is(err, ErrTooManyRequests) {
-			return nil, err
-		}
-
-		// 429 error - wait before retry
-		lastErr = err
-		if attempt < maxRetries-1 {
-			backoff := time.Duration(attempt+1) * time.Second
-			select {
-			case <-c.timeAfter(backoff):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
-}
-
-func (c *Client) getVulnerabilityOnce(ctx context.Context, id string) (*model.Vulnerability, error) {
-	// Apply rate limiting if configured
 	if c.limiter != nil {
 		if err := c.limiter.Wait(ctx); err != nil {
 			return nil, fmt.Errorf("rate limit wait: %w", err)
@@ -206,30 +191,27 @@ func (c *Client) getVulnerabilityOnce(ctx context.Context, id string) (*model.Vu
 
 	url := fmt.Sprintf("%s/v1/vulns/%s", c.baseURL, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.retryClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// continue to decode
+	case http.StatusNotFound:
 		return nil, ErrNotFound
-	}
-
-	if resp.StatusCode == http.StatusBadRequest {
+	case http.StatusBadRequest:
 		return nil, ErrBadRequest
-	}
-
-	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, ErrTooManyRequests
-	}
-
-	if resp.StatusCode != http.StatusOK {
+	case http.StatusTooManyRequests:
+		return nil, fmt.Errorf("max retries exceeded: %w", ErrTooManyRequests)
+	default:
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 

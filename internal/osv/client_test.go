@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -165,12 +164,10 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		if callCount < 3 {
-			// Return 429 for first 2 calls
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
-		// Return success on 3rd call
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`)); err != nil {
 			t.Errorf("failed to write response: %v", err)
@@ -178,12 +175,8 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var backoffs []time.Duration
-	client := osv.NewClient(server.URL, osv.WithBackoffAfterFunc(func(d time.Duration) <-chan time.Time {
-		backoffs = append(backoffs, d)
-		ch := make(chan time.Time, 1)
-		ch <- time.Now()
-		return ch
+	client := osv.NewClient(server.URL, osv.WithBackoff(func(attemptNum int, resp *http.Response) time.Duration {
+		return 0 // instant retry for testing
 	}))
 	ctx := context.Background()
 
@@ -197,10 +190,31 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	if callCount != 3 {
 		t.Errorf("callCount = %d, want 3 (should retry on 429)", callCount)
 	}
+}
 
-	expected := []time.Duration{1 * time.Second, 2 * time.Second}
-	if !reflect.DeepEqual(expected, backoffs) {
-		t.Fatalf("unexpected backoff durations, want %v got %v", expected, backoffs)
+func TestGetVulnerability429ExhaustedRetries(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	client := osv.NewClient(server.URL, osv.WithBackoff(func(attemptNum int, resp *http.Response) time.Duration {
+		return 0 // instant retry for testing
+	}))
+	ctx := context.Background()
+
+	_, err := client.GetVulnerability(ctx, "test")
+	if err == nil {
+		t.Fatal("expected error after exhausted retries")
+	}
+	if !errors.Is(err, osv.ErrTooManyRequests) {
+		t.Errorf("error = %v, want ErrTooManyRequests", err)
+	}
+	// 1 initial + 2 retries = 3 total
+	if callCount != 3 {
+		t.Errorf("callCount = %d, want 3", callCount)
 	}
 }
 
