@@ -14,7 +14,7 @@ import (
 )
 
 // processEntries fetches vulnerabilities for each entry and stores them.
-func processEntries(ctx context.Context, client Client, st *store.Store, entries []model.Entry) error {
+func processEntries(ctx context.Context, client Client, st FetchStore, entries []model.Entry) error {
 	for _, entry := range entries {
 		if err := processEntry(ctx, client, st, entry); err != nil {
 			return fmt.Errorf("process entry %s: %w", entry.ID, err)
@@ -26,7 +26,7 @@ func processEntries(ctx context.Context, client Client, st *store.Store, entries
 // processEntriesParallel fetches vulnerabilities in parallel with controlled concurrency.
 // B5: uses errgroup.SetLimit instead of manual semaphore.
 // B6: no loop variable capture needed (Go 1.22+).
-func processEntriesParallel(ctx context.Context, client Client, st *store.Store, entries []model.Entry, maxConcurrency int) error {
+func processEntriesParallel(ctx context.Context, client Client, st FetchStore, entries []model.Entry, maxConcurrency int) error {
 	if maxConcurrency <= 0 {
 		return processEntries(ctx, client, st, entries)
 	}
@@ -43,7 +43,7 @@ func processEntriesParallel(ctx context.Context, client Client, st *store.Store,
 	return g.Wait()
 }
 
-func processEntry(ctx context.Context, client Client, st *store.Store, entry model.Entry) error {
+func processEntry(ctx context.Context, client Client, st FetchStore, entry model.Entry) error {
 	vuln, err := client.GetVulnerability(ctx, entry.ID)
 	if err != nil {
 		if errors.Is(err, osv.ErrNotFound) {

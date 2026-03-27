@@ -9,6 +9,7 @@ import (
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/app"
 	"github.com/pHo9UBenaA/osv-scraper/internal/config"
+	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
@@ -57,7 +58,8 @@ func runFetch() error {
 	}
 	defer st.Close()
 
-	return app.Fetch(ctx, cfg, st)
+	client := osv.NewClientWithOptions(config.APIBaseURL, config.RateLimit, config.HTTPTimeout)
+	return app.Fetch(ctx, cfg, client, st)
 }
 
 func runReport() error {

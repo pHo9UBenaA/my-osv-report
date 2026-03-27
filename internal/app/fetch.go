@@ -19,8 +19,18 @@ type Client interface {
 	GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error)
 }
 
+// FetchStore defines the store operations needed by the fetch workflow.
+type FetchStore interface {
+	GetCursor(ctx context.Context, source string) (time.Time, error)
+	SaveCursor(ctx context.Context, source string, cursor time.Time) error
+	SaveVulnerability(ctx context.Context, v store.Vulnerability) error
+	SaveAffected(ctx context.Context, a store.Affected) error
+	SaveTombstone(ctx context.Context, id string) error
+	DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.Time) error
+}
+
 // Fetch retrieves vulnerability data from OSV API for configured ecosystems.
-func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
+func Fetch(ctx context.Context, cfg *config.Config, client Client, st FetchStore) error {
 	if len(cfg.Ecosystems) == 0 {
 		slog.Warn("no ecosystems configured, set OSV_ECOSYSTEMS environment variable")
 		return nil
@@ -28,7 +38,6 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 
 	slog.Info("starting vulnerability fetch", "ecosystems", cfg.Ecosystems)
 
-	client := osv.NewClientWithOptions(config.APIBaseURL, config.RateLimit, config.HTTPTimeout)
 	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
 
 	var errs []error
@@ -53,7 +62,7 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 	return nil
 }
 
-func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store, client Client, cfg *config.Config) error {
+func processEcosystem(ctx context.Context, eco model.Ecosystem, st FetchStore, client Client, cfg *config.Config) error {
 	source := eco.String()
 	slog.Info("processing ecosystem", "ecosystem", source)
 

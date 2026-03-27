@@ -11,6 +11,13 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
+// ReportStore defines the store operations needed by the report workflow.
+type ReportStore interface {
+	GetVulnerabilitiesForReport(ctx context.Context, ecosystem string) ([]store.ReportRow, error)
+	GetUnreportedVulnerabilities(ctx context.Context, ecosystem string) ([]store.ReportRow, error)
+	SaveReportSnapshot(ctx context.Context, entries []store.ReportRow) error
+}
+
 // ReportOptions holds options for report generation.
 type ReportOptions struct {
 	Format     string
@@ -21,7 +28,7 @@ type ReportOptions struct {
 }
 
 // GenerateReport creates a vulnerability report from the database.
-func GenerateReport(ctx context.Context, st *store.Store, opts ReportOptions) error {
+func GenerateReport(ctx context.Context, st ReportStore, opts ReportOptions) error {
 	outputPath := resolveOutputPath(opts.OutputDir, opts.FilePrefix, opts.Format, time.Now().UTC())
 	slog.Info("generating report", "format", opts.Format, "output", outputPath, "ecosystem", opts.Ecosystem, "diff", opts.Diff)
 
