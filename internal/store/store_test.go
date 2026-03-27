@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-report/internal/store"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/pHo9UBenaA/osv-report/internal/store"
 )
 
 func ptrFloat64(v float64) *float64 { return &v }
