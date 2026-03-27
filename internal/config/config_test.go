@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/config"
-	"github.com/pHo9UBenaA/osv-scraper/internal/ecosystem"
+	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 )
 
 func TestLoad(t *testing.T) {
@@ -31,7 +31,7 @@ func TestLoad(t *testing.T) {
 		t.Errorf("DBPath = %q, want %q", cfg.DBPath, "./test.db")
 	}
 
-	want := []ecosystem.Ecosystem{ecosystem.NPM, ecosystem.PyPI, ecosystem.Go}
+	want := []model.Ecosystem{model.NPM, model.PyPI, model.Go}
 	if len(cfg.Ecosystems) != len(want) {
 		t.Fatalf("Ecosystems length = %d, want %d", len(cfg.Ecosystems), len(want))
 	}
@@ -165,7 +165,7 @@ OSV_DATA_RETENTION_DAYS=30`
 		t.Errorf("DBPath = %q, want %q", cfg.DBPath, "./dotenv.db")
 	}
 
-	want := []ecosystem.Ecosystem{ecosystem.NPM, ecosystem.Go}
+	want := []model.Ecosystem{model.NPM, model.Go}
 	if len(cfg.Ecosystems) != len(want) {
 		t.Fatalf("Ecosystems length = %d, want %d", len(cfg.Ecosystems), len(want))
 	}

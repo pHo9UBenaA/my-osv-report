@@ -47,7 +47,7 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 
 	var errs []error
 	for _, eco := range cfg.Ecosystems {
-		if err := processEcosystem(ctx, model.Ecosystem(eco), st, client, cfg); err != nil {
+		if err := processEcosystem(ctx, eco, st, client, cfg); err != nil {
 			slog.Error("failed to process ecosystem", "ecosystem", eco, "error", err)
 			errs = append(errs, err)
 			continue
