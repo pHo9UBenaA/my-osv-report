@@ -68,7 +68,9 @@ func TestSitemapURL_EcosystemVariants(t *testing.T) {
 	}
 }
 
-func TestValidate_EcosystemValidity(t *testing.T) {
+func TestValidateWith_EcosystemValidity(t *testing.T) {
+	allowList := []string{"npm", "PyPI", "GitHub Actions"}
+
 	cases := []struct {
 		name    string
 		eco     model.Ecosystem
@@ -98,9 +100,49 @@ func TestValidate_EcosystemValidity(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.eco.Validate()
+			err := tt.eco.ValidateWith(allowList)
 			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("Validate() = %v, want %v", err, tt.wantErr)
+				t.Errorf("ValidateWith() = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateEcosystems_BatchValidation(t *testing.T) {
+	allowList := []string{"npm", "PyPI", "Go"}
+
+	cases := []struct {
+		name       string
+		ecosystems []model.Ecosystem
+		wantErr    bool
+	}{
+		{
+			name:       "AllValid_ReturnsNil",
+			ecosystems: []model.Ecosystem{model.NPM, model.PyPI, model.Go},
+			wantErr:    false,
+		},
+		{
+			name:       "OneInvalid_ReturnsError",
+			ecosystems: []model.Ecosystem{model.NPM, model.Ecosystem("Unknown")},
+			wantErr:    true,
+		},
+		{
+			name:       "MultipleInvalid_ReturnsJoinedError",
+			ecosystems: []model.Ecosystem{model.Ecosystem("A"), model.Ecosystem("B")},
+			wantErr:    true,
+		},
+		{
+			name:       "Empty_ReturnsNil",
+			ecosystems: []model.Ecosystem{},
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := model.ValidateEcosystems(tt.ecosystems, allowList)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateEcosystems() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -108,44 +150,35 @@ func TestValidate_EcosystemValidity(t *testing.T) {
 
 func TestParseEcosystems_InputVariants(t *testing.T) {
 	cases := []struct {
-		name    string
-		input   string
-		want    []model.Ecosystem
-		wantErr error
+		name  string
+		input string
+		want  []model.Ecosystem
 	}{
 		{
-			name:    "CommaSeparatedList_ReturnsParsedSlice",
-			input:   "npm,PyPI,Go",
-			want:    []model.Ecosystem{model.NPM, model.PyPI, model.Go},
-			wantErr: nil,
+			name:  "CommaSeparatedList_ReturnsParsedSlice",
+			input: "npm,PyPI,Go",
+			want:  []model.Ecosystem{model.NPM, model.PyPI, model.Go},
 		},
 		{
-			name:    "WhitespaceAroundEntries_TrimsAndParses",
-			input:   " npm , PyPI , Go ",
-			want:    []model.Ecosystem{model.NPM, model.PyPI, model.Go},
-			wantErr: nil,
+			name:  "WhitespaceAroundEntries_TrimsAndParses",
+			input: " npm , PyPI , Go ",
+			want:  []model.Ecosystem{model.NPM, model.PyPI, model.Go},
 		},
 		{
-			name:    "EmptyString_ReturnsEmptySlice",
-			input:   "",
-			want:    []model.Ecosystem{},
-			wantErr: nil,
+			name:  "EmptyString_ReturnsEmptySlice",
+			input: "",
+			want:  []model.Ecosystem{},
 		},
 		{
-			name:    "InvalidInMiddle_ReturnsErrInvalidEcosystem",
-			input:   "npm,InvalidEco,PyPI",
-			want:    nil,
-			wantErr: model.ErrInvalidEcosystem,
+			name:  "AnyValue_ParsedWithoutValidation",
+			input: "npm,InvalidEco,PyPI",
+			want:  []model.Ecosystem{model.NPM, model.Ecosystem("InvalidEco"), model.PyPI},
 		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := model.ParseEcosystems(tt.input)
-			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("ParseEcosystems() error = %v, want %v", err, tt.wantErr)
-				return
-			}
+			got := model.ParseEcosystems(tt.input)
 			if len(got) != len(tt.want) {
 				t.Errorf("ParseEcosystems() got %d ecosystems, want %d", len(got), len(tt.want))
 				return
