@@ -1,6 +1,6 @@
 module github.com/pHo9UBenaA/osv-report
 
-go 1.24.4
+go 1.25.8
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
