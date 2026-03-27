@@ -1,21 +1,26 @@
 ## Development
 
+### Prerequisites
+
+- Go 1.24+
+- C compiler (CGo required by `mattn/go-sqlite3`)
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
+  - Linux: `gcc` or `build-essential`
+
 ### Architecture
 
 <details>
 
 ```
 osv-scraper/
-├── cmd/osv-scraper/     # CLI entry point (~70 lines)
+├── cmd/osv-scraper/     # CLI entry point
 ├── internal/            # Internal packages (Go standard)
-│   ├── app/             # Application logic (fetch, report, help)
-│   ├── config/          # Configuration management
-│   ├── ecosystem/       # Ecosystem definitions & URL mapper
-│   ├── fetcher/         # Sitemap fetcher & CSV fetcher
-│   ├── osv/             # OSV scraper, API client & parser
+│   ├── app/             # Application orchestration (fetch, report)
+│   ├── config/          # Configuration management (env vars)
+│   ├── model/           # Domain models (Vulnerability, Ecosystem, CVSS)
+│   ├── osv/             # OSV API client & sitemap parser
 │   ├── report/          # Report output (CSV, JSONL, Markdown)
-│   ├── severity/        # CVSS severity parsing
-│   └── store/           # SQLite storage (~470 lines)
+│   └── store/           # SQLite storage (database/sql + mattn/go-sqlite3)
 ├── docs/                # Documentation
 └── go.mod
 ```
