@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 
@@ -27,11 +26,13 @@ func main() {
 	switch cmd {
 	case "fetch":
 		if err := runFetch(); err != nil {
-			log.Fatalf("error: %v", err)
+			slog.Error("command failed", "error", err)
+			os.Exit(1)
 		}
 	case "report":
 		if err := runReport(); err != nil {
-			log.Fatalf("error: %v", err)
+			slog.Error("command failed", "error", err)
+			os.Exit(1)
 		}
 	case "help", "-h", "--help":
 		showHelp()
