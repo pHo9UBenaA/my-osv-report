@@ -11,10 +11,10 @@ func FormatJSONL(entries []VulnerabilityEntry) (string, error) {
 	var sb strings.Builder
 
 	for _, e := range entries {
-		obj := map[string]interface{}{
+		obj := map[string]any{
 			"ecosystem":           e.Ecosystem,
 			"package":             e.Package,
-			"source":              e.ID,
+			"id":                  e.ID,
 			"published":           formatString(e.Published),
 			"modified":            formatString(e.Modified),
 			"severity_base_score": formatBaseScore(e.SeverityBaseScore),

@@ -35,7 +35,7 @@ func FormatMarkdown(entries []VulnerabilityEntry) string {
 	var sb strings.Builder
 
 	// Write header
-	sb.WriteString("| Ecosystem | Package | Source | Published | Modified | Severity: Base Score | Severity: Vector String |\n")
+	sb.WriteString("| Ecosystem | Package | ID | Published | Modified | Severity: Base Score | Severity: Vector String |\n")
 	sb.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
 
 	// Write entries

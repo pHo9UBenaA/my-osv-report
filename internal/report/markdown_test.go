@@ -33,7 +33,7 @@ func TestMarkdownFormatter_Format(t *testing.T) {
 	result := report.FormatMarkdown(entries)
 
 	// Check header
-	if !strings.Contains(result, "| Ecosystem | Package | Source | Published | Modified | Severity: Base Score | Severity: Vector String |") {
+	if !strings.Contains(result, "| Ecosystem | Package | ID | Published | Modified | Severity: Base Score | Severity: Vector String |") {
 		t.Errorf("missing header in result")
 	}
 

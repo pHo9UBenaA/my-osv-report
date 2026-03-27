@@ -46,8 +46,8 @@ func TestJSONLFormatter_Format(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
 		t.Fatalf("failed to parse first line: %v", err)
 	}
-	if first["source"] != "GHSA-xxxx-yyyy-zzzz" {
-		t.Errorf("first.source = %v, want GHSA-xxxx-yyyy-zzzz", first["source"])
+	if first["id"] != "GHSA-xxxx-yyyy-zzzz" {
+		t.Errorf("first.id = %v, want GHSA-xxxx-yyyy-zzzz", first["id"])
 	}
 	if first["published"] != "2025-10-01T00:00:00Z" {
 		t.Errorf("first.published = %v, want 2025-10-01T00:00:00Z", first["published"])
@@ -113,8 +113,8 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 		t.Fatalf("failed to parse first line: %v", err)
 	}
 	// JSON should safely encode these as strings
-	if first["source"] != "=cmd|'/c calc'!A1" {
-		t.Errorf("first.source = %v, want =cmd|'/c calc'!A1", first["source"])
+	if first["id"] != "=cmd|'/c calc'!A1" {
+		t.Errorf("first.id = %v, want =cmd|'/c calc'!A1", first["id"])
 	}
 	if first["ecosystem"] != "+EXEC" {
 		t.Errorf("first.ecosystem = %v, want +EXEC", first["ecosystem"])
@@ -145,8 +145,8 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 	}
 
 	// Verify that raw output has properly escaped JSON
-	if !strings.Contains(result, `"source":"=cmd|'/c calc'!A1"`) {
-		t.Error("expected source to be properly JSON-escaped in output")
+	if !strings.Contains(result, `"id":"=cmd|'/c calc'!A1"`) {
+		t.Error("expected id to be properly JSON-escaped in output")
 	}
 	if !strings.Contains(result, `"package":"test\npkg"`) {
 		t.Error("expected newline to be escaped as \\n in JSON output")

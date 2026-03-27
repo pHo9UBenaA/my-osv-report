@@ -37,7 +37,7 @@ func TestCSVFormatter_Format(t *testing.T) {
 	}
 
 	// Check header
-	if !strings.Contains(result, "ecosystem,package,source,published,modified,severity_base_score,severity_vector") {
+	if !strings.Contains(result, "ecosystem,package,id,published,modified,severity_base_score,severity_vector") {
 		t.Errorf("missing header in result")
 	}
 

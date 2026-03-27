@@ -15,7 +15,7 @@ func FormatCSV(entries []VulnerabilityEntry) (string, error) {
 	w := csv.NewWriter(&buf)
 
 	// Write header
-	header := []string{"ecosystem", "package", "source", "published", "modified", "severity_base_score", "severity_vector"}
+	header := []string{"ecosystem", "package", "id", "published", "modified", "severity_base_score", "severity_vector"}
 	if err := w.Write(header); err != nil {
 		return "", fmt.Errorf("write header: %w", err)
 	}
