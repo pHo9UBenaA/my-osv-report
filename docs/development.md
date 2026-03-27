@@ -12,8 +12,8 @@
 <details>
 
 ```
-osv-scraper/
-├── cmd/osv-scraper/     # CLI entry point
+osv-report/
+├── cmd/osv-report/     # CLI entry point
 ├── internal/            # Internal packages (Go standard)
 │   ├── app/             # Application orchestration (fetch, report)
 │   ├── config/          # Configuration management (env vars)
