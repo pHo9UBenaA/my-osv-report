@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const timeFormat = time.RFC3339
@@ -65,7 +65,7 @@ func toNullString(value string) any {
 func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	// Open SQLite database; WAL/busy timeout configured in initSchema
 	connStr := dbPath
-	db, err := sql.Open("sqlite", connStr)
+	db, err := sql.Open("sqlite3", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

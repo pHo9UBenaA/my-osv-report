@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func ptrFloat64(v float64) *float64 { return &v }
@@ -171,7 +171,7 @@ func TestSaveVulnerabilitySeverityFields(t *testing.T) {
 		t.Fatalf("SaveVulnerability() error = %v", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
@@ -318,7 +318,7 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 	}
 
 	// Open database to verify deletion
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
@@ -577,7 +577,7 @@ func TestSaveReportSnapshot(t *testing.T) {
 	}
 
 	// Verify snapshot was saved by checking the database directly
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
@@ -674,7 +674,7 @@ func TestIndexPerformance(t *testing.T) {
 	defer s.Close()
 
 	// Verify indexes exist
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("Open database error = %v", err)
 	}
