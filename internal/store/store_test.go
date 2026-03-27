@@ -693,25 +693,15 @@ func TestGetUnreportedVulnerabilities_MixedState_ReturnsModifiedAndNew(t *testin
 		t.Fatalf("GetUnreportedVulnerabilities() returned %d entries, want 2", len(unreported))
 	}
 
-	foundModified := false
-	foundNew := false
-	for _, e := range unreported {
-		if e.ID == "GHSA-modified" {
-			foundModified = true
-		}
-		if e.ID == "GHSA-new" {
-			foundNew = true
-		}
-		if e.ID == "GHSA-unchanged" {
-			t.Errorf("GetUnreportedVulnerabilities() returned unchanged vulnerability")
-		}
+	unreportedIDs := map[string]bool{unreported[0].ID: true, unreported[1].ID: true}
+	if !unreportedIDs["GHSA-modified"] {
+		t.Errorf("GetUnreportedVulnerabilities() did not return GHSA-modified, got %v", unreportedIDs)
 	}
-
-	if !foundModified {
-		t.Errorf("GetUnreportedVulnerabilities() did not return GHSA-modified")
+	if !unreportedIDs["GHSA-new"] {
+		t.Errorf("GetUnreportedVulnerabilities() did not return GHSA-new, got %v", unreportedIDs)
 	}
-	if !foundNew {
-		t.Errorf("GetUnreportedVulnerabilities() did not return GHSA-new")
+	if unreportedIDs["GHSA-unchanged"] {
+		t.Errorf("GetUnreportedVulnerabilities() should not return GHSA-unchanged")
 	}
 
 	npmUnreported, err := s.GetUnreportedVulnerabilities(ctx, "npm")

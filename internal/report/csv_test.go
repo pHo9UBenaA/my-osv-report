@@ -137,14 +137,15 @@ func TestFormatCSV_LeadingWhitespaceThenDangerousChar_StillEscaped(t *testing.T)
 	}
 
 	data := records[1]
-	unsafePrefixes := []string{"=", "+", "-", "@"}
-
-	for idx, field := range data {
-		trimmed := strings.TrimLeft(field, " \t\r\n")
-		for _, prefix := range unsafePrefixes {
-			if strings.HasPrefix(trimmed, prefix) {
-				t.Fatalf("field %d should escape prefix %q but got %q", idx, prefix, field)
-			}
-		}
+	// field 0=ecosystem, 1=package, 2=id, 6=severity_vector
+	// Each dangerous-prefix field should be escaped with a leading single quote.
+	if data[2] != "'\n=INJECT" {
+		t.Errorf("id field = %q, want %q", data[2], "'\n=INJECT")
+	}
+	if data[1] != "'\t=cmd|'/c calc'!A1" {
+		t.Errorf("package field = %q, want %q", data[1], "'\t=cmd|'/c calc'!A1")
+	}
+	if data[6] != "'\r@ALERT" {
+		t.Errorf("severity_vector field = %q, want %q", data[6], "'\r@ALERT")
 	}
 }
