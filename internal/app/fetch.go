@@ -14,6 +14,21 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/store"
 )
 
+// Client defines the interface for fetching vulnerability data.
+type Client interface {
+	GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error)
+}
+
+// FetchStore defines the interface for persisting fetch results.
+type FetchStore interface {
+	GetCursor(ctx context.Context, source string) (time.Time, error)
+	SaveVulnerability(ctx context.Context, v store.Vulnerability) error
+	SaveAffected(ctx context.Context, a store.Affected) error
+	SaveTombstone(ctx context.Context, id string) error
+	SaveCursor(ctx context.Context, source string, cursor time.Time) error
+	DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.Time) error
+}
+
 // Fetch retrieves vulnerability data from OSV API for configured ecosystems.
 func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 	if len(cfg.Ecosystems) == 0 {
@@ -28,17 +43,22 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 		"batchSize", cfg.BatchSize)
 
 	client := osv.NewClientWithOptions(cfg.APIBaseURL, cfg.RateLimit, cfg.HTTPTimeout)
-	adapter := &storeAdapter{st}
-	scraper := osv.NewScraper(client, adapter)
+	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
 
 	var errs []error
 	for _, eco := range cfg.Ecosystems {
-		if err := processEcosystem(ctx, eco, st, scraper, cfg); err != nil {
+		if err := processEcosystem(ctx, model.Ecosystem(eco), st, client, cfg); err != nil {
 			slog.Error("failed to process ecosystem", "ecosystem", eco, "error", err)
 			errs = append(errs, err)
 			continue
 		}
 	}
+
+	// B4: retention delete moved outside per-ecosystem loop
+	if err := st.DeleteVulnerabilitiesOlderThan(ctx, retentionCutoff); err != nil {
+		return fmt.Errorf("delete old vulnerabilities: %w", err)
+	}
+	slog.Info("deleted old data", "cutoff", retentionCutoff)
 
 	if len(errs) > 0 {
 		return fmt.Errorf("some ecosystems failed to process: %w", errors.Join(errs...))
@@ -48,18 +68,15 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 	return nil
 }
 
-func processEcosystem(ctx context.Context, eco interface {
-	SitemapURL() string
-	String() string
-}, st *store.Store, scraper *osv.Scraper, cfg *config.Config) error {
+// B3: replaced anonymous interface with model.Ecosystem
+func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store, client Client, cfg *config.Config) error {
 	source := eco.String()
 	slog.Info("processing ecosystem", "ecosystem", source)
 
-	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
-
 	lastCursor, err := st.GetCursor(ctx, source)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		// B2: use errors.Is instead of ==
+		if errors.Is(err, sql.ErrNoRows) {
 			lastCursor = time.Time{}
 			slog.Info("no cursor found, starting from beginning", "ecosystem", source)
 		} else {
@@ -77,6 +94,7 @@ func processEcosystem(ctx context.Context, eco interface {
 
 	slog.Info("fetched entries from sitemap", "ecosystem", source, "count", len(entries))
 
+	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
 	retentionFiltered := model.FilterByCursor(entries, retentionCutoff)
 	slog.Info("filtered by retention", "ecosystem", source, "count", len(retentionFiltered), "cutoff", retentionCutoff)
 
@@ -84,6 +102,9 @@ func processEcosystem(ctx context.Context, eco interface {
 		slog.Info("no new entries to process", "ecosystem", source)
 		return nil
 	}
+
+	adapter := &storeAdapter{st}
+	scraper := osv.NewScraper(client.(*osv.Client), adapter)
 
 	for i := 0; i < len(retentionFiltered); i += cfg.BatchSize {
 		end := i + cfg.BatchSize
@@ -99,15 +120,11 @@ func processEcosystem(ctx context.Context, eco interface {
 		}
 	}
 
-	latestModified := retentionFiltered[len(retentionFiltered)-1].Modified
+	// B1: use model.MaxModified instead of last element
+	latestModified := model.MaxModified(retentionFiltered)
 	if err := st.SaveCursor(ctx, source, latestModified); err != nil {
 		return fmt.Errorf("save cursor: %w", err)
 	}
-
-	if err := st.DeleteVulnerabilitiesOlderThan(ctx, retentionCutoff); err != nil {
-		return fmt.Errorf("delete old vulnerabilities: %w", err)
-	}
-	slog.Info("deleted old data", "ecosystem", source, "cutoff", retentionCutoff)
 
 	slog.Info("completed ecosystem", "ecosystem", source, "processed", len(retentionFiltered), "cursor", latestModified)
 	return nil
