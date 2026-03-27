@@ -8,7 +8,7 @@ func showHelp() {
 Work with the OSV vulnerability database from the command line.
 
 USAGE
-  osv-scraper <command> [flags]
+  osv-report <command> [flags]
 
 CORE COMMANDS
   fetch:        Fetch the latest vulnerability data from the OSV API
@@ -28,12 +28,12 @@ ENVIRONMENT VARIABLES
   OSV_DATA_RETENTION_DAYS  Data retention period in days (default: 7)
 
 EXAMPLES
-  $ OSV_ECOSYSTEMS=npm,pypi osv-scraper fetch
-  $ osv-scraper report --format markdown --output-dir . --file-prefix report
-  $ osv-scraper report --diff --format csv --ecosystem npm --output-dir ./reports --file-prefix npm-vuln
+  $ OSV_ECOSYSTEMS=npm,pypi osv-report fetch
+  $ osv-report report --format markdown --output-dir . --file-prefix report
+  $ osv-report report --diff --format csv --ecosystem npm --output-dir ./reports --file-prefix npm-vuln
 
 LEARN MORE
-  Read the manual at https://github.com/pHo9UBenaA/osv-scraper/
+  Read the manual at https://github.com/pHo9UBenaA/osv-report/
 
 NOTE
   PILOT VERSION — not yet reviewed by contributors. Use with caution.

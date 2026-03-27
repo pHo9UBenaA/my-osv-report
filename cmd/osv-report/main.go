@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/app"
-	"github.com/pHo9UBenaA/osv-scraper/internal/config"
-	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
-	"github.com/pHo9UBenaA/osv-scraper/internal/store"
+	"github.com/pHo9UBenaA/osv-report/internal/app"
+	"github.com/pHo9UBenaA/osv-report/internal/config"
+	"github.com/pHo9UBenaA/osv-report/internal/osv"
+	"github.com/pHo9UBenaA/osv-report/internal/store"
 )
 
 func main() {

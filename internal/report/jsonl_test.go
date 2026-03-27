@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/report"
+	"github.com/pHo9UBenaA/osv-report/internal/report"
 )
 
 func TestFormatJSONL_MixedEntries_ProducesOneLinePerEntry(t *testing.T) {

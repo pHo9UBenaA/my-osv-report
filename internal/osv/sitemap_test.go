@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
+	"github.com/pHo9UBenaA/osv-report/internal/osv"
 )
 
 func TestFetch_ValidSitemap_ExtractsIDsAndLastmod(t *testing.T) {

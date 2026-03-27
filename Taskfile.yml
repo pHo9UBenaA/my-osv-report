@@ -1,13 +1,13 @@
 version: '3'
 
 vars:
-  BINARY_NAME: osv-scraper
+  BINARY_NAME: osv-report
   BUILD_DIR: .
-  CMD_DIR: ./cmd/osv-scraper
+  CMD_DIR: ./cmd/osv-report
 
 tasks:
   build:
-    desc: Build the osv-scraper binary
+    desc: Build the osv-report binary
     cmds:
       - go build -o {{.BINARY_NAME}} {{.CMD_DIR}}
 

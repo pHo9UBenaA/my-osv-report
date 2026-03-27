@@ -3,7 +3,7 @@ package model_test
 import (
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/model"
+	"github.com/pHo9UBenaA/osv-report/internal/model"
 )
 
 func TestParseVector_ValidCVSS31Vector_ReturnsBaseScore(t *testing.T) {

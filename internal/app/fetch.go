@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/config"
-	"github.com/pHo9UBenaA/osv-scraper/internal/model"
-	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
-	"github.com/pHo9UBenaA/osv-scraper/internal/store"
+	"github.com/pHo9UBenaA/osv-report/internal/config"
+	"github.com/pHo9UBenaA/osv-report/internal/model"
+	"github.com/pHo9UBenaA/osv-report/internal/osv"
+	"github.com/pHo9UBenaA/osv-report/internal/store"
 )
 
 // Client defines the interface for fetching vulnerability data.

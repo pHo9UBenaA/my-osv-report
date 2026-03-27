@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/model"
+	"github.com/pHo9UBenaA/osv-report/internal/model"
 )
 
 func mustParseTime(s string) time.Time {

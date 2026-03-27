@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/report"
+	"github.com/pHo9UBenaA/osv-report/internal/report"
 )
 
 func TestFormatMarkdown_MixedEntries_ProducesTableWithNADefaults(t *testing.T) {

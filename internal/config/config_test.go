@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/config"
-	"github.com/pHo9UBenaA/osv-scraper/internal/model"
+	"github.com/pHo9UBenaA/osv-report/internal/config"
+	"github.com/pHo9UBenaA/osv-report/internal/model"
 )
 
 func TestLoad_AllEnvVarsSet_ReturnsPopulatedConfig(t *testing.T) {

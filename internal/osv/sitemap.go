@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/model"
+	"github.com/pHo9UBenaA/osv-report/internal/model"
 )
 
 const defaultSitemapHTTPTimeout = 30 * time.Second

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/report"
+	"github.com/pHo9UBenaA/osv-report/internal/report"
 )
 
 func TestWriteCSV_ValidEntries_CreatesFile(t *testing.T) {

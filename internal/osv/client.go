@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pHo9UBenaA/osv-scraper/internal/model"
+	"github.com/pHo9UBenaA/osv-report/internal/model"
 	"golang.org/x/time/rate"
 )
 

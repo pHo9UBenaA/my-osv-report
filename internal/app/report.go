@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/report"
-	"github.com/pHo9UBenaA/osv-scraper/internal/store"
+	"github.com/pHo9UBenaA/osv-report/internal/report"
+	"github.com/pHo9UBenaA/osv-report/internal/store"
 )
 
 // ReportStore defines the store operations needed by the report workflow.

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/app"
-	"github.com/pHo9UBenaA/osv-scraper/internal/store"
+	"github.com/pHo9UBenaA/osv-report/internal/app"
+	"github.com/pHo9UBenaA/osv-report/internal/store"
 )
 
 type fakeReportStore struct {

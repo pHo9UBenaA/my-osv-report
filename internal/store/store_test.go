@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/store"
+	"github.com/pHo9UBenaA/osv-report/internal/store"
 	_ "github.com/mattn/go-sqlite3"
 )
 

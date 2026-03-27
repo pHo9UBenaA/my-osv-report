@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
+	"github.com/pHo9UBenaA/osv-report/internal/osv"
 )
 
 func TestGetVulnerability_StatusCodeHandling(t *testing.T) {

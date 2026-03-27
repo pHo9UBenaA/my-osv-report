@@ -1,4 +1,4 @@
-module github.com/pHo9UBenaA/osv-scraper
+module github.com/pHo9UBenaA/osv-report
 
 go 1.24.4
 
