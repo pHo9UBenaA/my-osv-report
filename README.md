@@ -115,7 +115,7 @@ At minimum, `OSV_ECOSYSTEMS` must be set before running the fetch command.
 
 | Name                      | Description                           | Default                   |
 | ------------------------- | ------------------------------------- | ------------------------- |
-| `OSV_ECOSYSTEMS`          | Comma-separated ecosystems to monitor | *(empty – no collection)* |
+| `OSV_ECOSYSTEMS`          | Comma-separated ecosystems to monitor ([full list](https://osv-vulnerabilities.storage.googleapis.com/ecosystems.txt)) | *(empty – no collection)* |
 | `OSV_DB_PATH`             | SQLite database file                  | `./osv.db`                |
 | `OSV_DATA_RETENTION_DAYS` | Days of vulnerability data to keep    | `7`                       |
 
