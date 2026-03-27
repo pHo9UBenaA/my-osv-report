@@ -3,8 +3,8 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -46,14 +46,14 @@ type Store struct {
 	db *sql.DB
 }
 
-func toNullFloat64(value sql.NullFloat64) interface{} {
+func toNullFloat64(value sql.NullFloat64) any {
 	if value.Valid {
 		return value.Float64
 	}
 	return nil
 }
 
-func toNullString(value string) interface{} {
+func toNullString(value string) any {
 	if value != "" {
 		return value
 	}
@@ -148,22 +148,50 @@ func (s *Store) initSchema(ctx context.Context) error {
 		return fmt.Errorf("create schema: %w", err)
 	}
 
-	// Run migrations (for backward compatibility)
-	migrations := []string{
-		"ALTER TABLE vulnerability ADD COLUMN published TEXT",
-		"ALTER TABLE vulnerability ADD COLUMN severity_base_score REAL",
-		"ALTER TABLE vulnerability ADD COLUMN severity_vector TEXT",
-		"ALTER TABLE reported_snapshot ADD COLUMN severity_base_score REAL",
-		"ALTER TABLE reported_snapshot ADD COLUMN severity_vector TEXT",
-		"DROP TABLE IF EXISTS package_metrics",
-		`UPDATE vulnerability SET severity_vector = severity 
-		 WHERE (severity_vector IS NULL OR severity_vector = '') 
-		 AND severity IS NOT NULL AND severity != ''`,
+	// Version-based migrations (B9: replaces fragile string matching)
+	if err := s.runMigrations(ctx); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
 	}
-	for _, migration := range migrations {
-		_, err := s.db.ExecContext(ctx, migration)
-		if err != nil && !strings.Contains(err.Error(), "duplicate column") && !strings.Contains(err.Error(), "no such column") {
-			return fmt.Errorf("run migration: %w", err)
+
+	return nil
+}
+
+func (s *Store) runMigrations(ctx context.Context) error {
+	// Create schema_version table if it doesn't exist
+	_, err := s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_version (
+			version INTEGER NOT NULL
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("create schema_version table: %w", err)
+	}
+
+	// Get current version
+	var version int
+	err = s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&version)
+	if err != nil {
+		return fmt.Errorf("get schema version: %w", err)
+	}
+
+	// All migrations in order. Each migration runs exactly once.
+	type migration struct {
+		version int
+		sql     string
+	}
+	migrations := []migration{
+		{1, "DROP TABLE IF EXISTS package_metrics"},
+	}
+
+	for _, m := range migrations {
+		if m.version <= version {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, m.sql); err != nil {
+			return fmt.Errorf("migration v%d: %w", m.version, err)
+		}
+		if _, err := s.db.ExecContext(ctx, "INSERT INTO schema_version (version) VALUES (?)", m.version); err != nil {
+			return fmt.Errorf("update schema version to %d: %w", m.version, err)
 		}
 	}
 
@@ -194,7 +222,7 @@ func (s *Store) GetCursor(ctx context.Context, source string) (time.Time, error)
 	if err != nil {
 		// Return sql.ErrNoRows directly to allow caller to distinguish
 		// "no cursor found" from actual database errors
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return time.Time{}, sql.ErrNoRows
 		}
 		return time.Time{}, fmt.Errorf("get cursor: %w", err)
