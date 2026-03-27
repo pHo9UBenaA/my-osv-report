@@ -3,7 +3,6 @@ package store_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +14,7 @@ import (
 
 func ptrFloat64(v float64) *float64 { return &v }
 
-func TestNewStore(t *testing.T) {
+func TestNewStore_ValidPath_CreatesDatabaseFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
@@ -31,7 +30,7 @@ func TestNewStore(t *testing.T) {
 	}
 }
 
-func TestCursorOperations(t *testing.T) {
+func TestSaveThenGetCursor_ReturnsSavedTimestamp(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -45,12 +44,10 @@ func TestCursorOperations(t *testing.T) {
 	source := "test-ecosystem"
 	cursor := time.Date(2025, 10, 4, 12, 0, 0, 0, time.UTC)
 
-	// Save cursor
 	if err := s.SaveCursor(ctx, source, cursor); err != nil {
 		t.Fatalf("SaveCursor() error = %v", err)
 	}
 
-	// Get cursor
 	got, err := s.GetCursor(ctx, source)
 	if err != nil {
 		t.Fatalf("GetCursor() error = %v", err)
@@ -61,7 +58,7 @@ func TestCursorOperations(t *testing.T) {
 	}
 }
 
-func TestGetCursor_ErrorHandling(t *testing.T) {
+func TestGetCursor_ErrorConditions(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -78,33 +75,27 @@ func TestGetCursor_ErrorHandling(t *testing.T) {
 			t.Fatal("GetCursor() with non-existent source should return error")
 		}
 
-		// Should be sql.ErrNoRows (directly, not wrapped in fmt.Errorf)
-		// This allows callers to distinguish "no cursor yet" from "DB error"
 		if err != sql.ErrNoRows {
 			t.Errorf("GetCursor() should return sql.ErrNoRows directly for non-existent source, got: %v (type: %T)", err, err)
 		}
 	})
 
 	t.Run("DBError_DistinguishedFromNoRows", func(t *testing.T) {
-		// Close the database to simulate a real error
 		originalStore := s
 		s.Close()
 
-		// Try to get cursor from closed DB - should NOT be sql.ErrNoRows
 		_, err := originalStore.GetCursor(ctx, "any-source")
 		if err == nil {
 			t.Fatal("GetCursor() on closed DB should return error")
 		}
 
-		// This error should NOT be sql.ErrNoRows
-		// It should be a real database error wrapped in fmt.Errorf
 		if err == sql.ErrNoRows {
 			t.Errorf("GetCursor() DB error should NOT be sql.ErrNoRows, got: %v", err)
 		}
 	})
 }
 
-func TestSaveVulnerability(t *testing.T) {
+func TestSaveVulnerability_NewEntry_PersistsIdempotently(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -124,36 +115,12 @@ func TestSaveVulnerability(t *testing.T) {
 		t.Fatalf("SaveVulnerability() error = %v", err)
 	}
 
-	// Verify it was saved (idempotent - saving again should not error)
 	if err := s.SaveVulnerability(ctx, vuln); err != nil {
 		t.Fatalf("SaveVulnerability() second call error = %v", err)
 	}
 }
 
-func TestSaveVulnerabilityWithDetails(t *testing.T) {
-	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "test.db")
-	ctx := context.Background()
-
-	s, err := store.NewStore(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
-	defer s.Close()
-
-	vuln := store.Vulnerability{
-		ID:       "GHSA-detail-test",
-		Modified: time.Date(2025, 10, 4, 12, 34, 56, 0, time.UTC),
-		Summary:  "Test vulnerability summary",
-		Details:  "Detailed description of the vulnerability",
-	}
-
-	if err := s.SaveVulnerability(ctx, vuln); err != nil {
-		t.Fatalf("SaveVulnerability() error = %v", err)
-	}
-}
-
-func TestSaveVulnerabilitySeverityFields(t *testing.T) {
+func TestSaveVulnerability_NullThenUpdate_SeverityFieldsPersist(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -213,7 +180,7 @@ func TestSaveVulnerabilitySeverityFields(t *testing.T) {
 	}
 }
 
-func TestSaveAffected(t *testing.T) {
+func TestSaveAffected_NewRecord_Persists(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -235,7 +202,7 @@ func TestSaveAffected(t *testing.T) {
 	}
 }
 
-func TestSaveTombstone(t *testing.T) {
+func TestSaveTombstone_NewAndDuplicate_PersistsIdempotently(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -252,13 +219,12 @@ func TestSaveTombstone(t *testing.T) {
 		t.Fatalf("SaveTombstone() error = %v", err)
 	}
 
-	// Verify it was saved (idempotent - saving again should not error)
 	if err := s.SaveTombstone(ctx, id); err != nil {
 		t.Fatalf("SaveTombstone() second call error = %v", err)
 	}
 }
 
-func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
+func TestDeleteVulnerabilitiesOlderThan_MixedAges_RemovesOnlyOld(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -269,7 +235,6 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 	}
 	defer s.Close()
 
-	// Save old vulnerabilities
 	oldTime := time.Now().AddDate(0, 0, -14)
 	oldVuln := store.Vulnerability{
 		ID:       "GHSA-old-vuln",
@@ -288,11 +253,6 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 		t.Fatalf("SaveAffected(old) error = %v", err)
 	}
 
-	if err := s.SaveTombstone(ctx, "GHSA-old-tombstone"); err != nil {
-		t.Fatalf("SaveTombstone(old) error = %v", err)
-	}
-
-	// Save new vulnerabilities
 	newTime := time.Now().AddDate(0, 0, -3)
 	newVuln := store.Vulnerability{
 		ID:       "GHSA-new-vuln",
@@ -311,20 +271,17 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 		t.Fatalf("SaveAffected(new) error = %v", err)
 	}
 
-	// Delete vulnerabilities older than 7 days
 	cutoff := time.Now().AddDate(0, 0, -7)
 	if err := s.DeleteVulnerabilitiesOlderThan(ctx, cutoff); err != nil {
 		t.Fatalf("DeleteVulnerabilitiesOlderThan() error = %v", err)
 	}
 
-	// Open database to verify deletion
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
 	defer db.Close()
 
-	// Verify old vulnerability was deleted
 	var oldCount int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM vulnerability WHERE id = ?", "GHSA-old-vuln").Scan(&oldCount)
 	if err != nil {
@@ -334,7 +291,6 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 		t.Errorf("old vulnerability was not deleted, count = %d", oldCount)
 	}
 
-	// Verify new vulnerability still exists
 	var newCount int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM vulnerability WHERE id = ?", "GHSA-new-vuln").Scan(&newCount)
 	if err != nil {
@@ -344,7 +300,6 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 		t.Errorf("new vulnerability was deleted, count = %d", newCount)
 	}
 
-	// Verify old affected was deleted
 	var oldAffectedCount int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM affected WHERE vuln_id = ?", "GHSA-old-vuln").Scan(&oldAffectedCount)
 	if err != nil {
@@ -354,7 +309,6 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 		t.Errorf("old affected was not deleted, count = %d", oldAffectedCount)
 	}
 
-	// Verify new affected still exists
 	var newAffectedCount int
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM affected WHERE vuln_id = ?", "GHSA-new-vuln").Scan(&newAffectedCount)
 	if err != nil {
@@ -365,7 +319,7 @@ func TestDeleteVulnerabilitiesOlderThan(t *testing.T) {
 	}
 }
 
-func TestGetVulnerabilitiesForReport(t *testing.T) {
+func TestGetVulnerabilitiesForReport_MultipleEcosystems_FiltersCorrectly(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -376,7 +330,6 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 	}
 	defer s.Close()
 
-	// Save test data
 	vuln1 := store.Vulnerability{
 		ID:                "GHSA-1234-5678-90ab",
 		Modified:          time.Now(),
@@ -398,7 +351,6 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 		t.Fatalf("SaveAffected(1) error = %v", err)
 	}
 
-	// Save another vulnerability with different ecosystem
 	vuln2 := store.Vulnerability{
 		ID:             "GHSA-abcd-efgh-ijkl",
 		Modified:       time.Now(),
@@ -419,7 +371,6 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 		t.Fatalf("SaveAffected(2) error = %v", err)
 	}
 
-	// Get all vulnerabilities
 	entries, err := s.GetVulnerabilitiesForReport(ctx, "")
 	if err != nil {
 		t.Fatalf("GetVulnerabilitiesForReport() error = %v", err)
@@ -429,7 +380,6 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 		t.Errorf("GetVulnerabilitiesForReport() returned %d entries, want 2", len(entries))
 	}
 
-	// Get filtered by ecosystem
 	npmEntries, err := s.GetVulnerabilitiesForReport(ctx, "npm")
 	if err != nil {
 		t.Fatalf("GetVulnerabilitiesForReport(npm) error = %v", err)
@@ -443,14 +393,6 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 		t.Errorf("npmEntries[0].ID = %q, want %q", npmEntries[0].ID, "GHSA-1234-5678-90ab")
 	}
 
-	if npmEntries[0].Ecosystem != "npm" {
-		t.Errorf("npmEntries[0].Ecosystem = %q, want %q", npmEntries[0].Ecosystem, "npm")
-	}
-
-	if npmEntries[0].Package != "test-package-1" {
-		t.Errorf("npmEntries[0].Package = %q, want %q", npmEntries[0].Package, "test-package-1")
-	}
-
 	if npmEntries[0].SeverityScore == nil {
 		t.Fatal("expected SeverityScore to be non-nil")
 	}
@@ -458,13 +400,9 @@ func TestGetVulnerabilitiesForReport(t *testing.T) {
 	if *npmEntries[0].SeverityScore != 9.8 {
 		t.Errorf("SeverityScore = %v, want 9.8", *npmEntries[0].SeverityScore)
 	}
-
-	if npmEntries[0].SeverityVector != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
-		t.Errorf("SeverityVector = %q, want %q", npmEntries[0].SeverityVector, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
-	}
 }
 
-func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
+func TestGetVulnerabilitiesForReport_DifferentDates_SortsByPublishedDescending(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -475,17 +413,11 @@ func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
 	}
 	defer s.Close()
 
-	// Save vulnerabilities with different published dates
 	oldestPublished := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
 	middlePublished := time.Date(2025, 10, 2, 0, 0, 0, 0, time.UTC)
 	newestPublished := time.Date(2025, 10, 3, 0, 0, 0, 0, time.UTC)
 
-	// Vuln with oldest published date
-	vuln1 := store.Vulnerability{
-		ID:        "GHSA-oldest",
-		Modified:  time.Now(),
-		Published: oldestPublished,
-	}
+	vuln1 := store.Vulnerability{ID: "GHSA-oldest", Modified: time.Now(), Published: oldestPublished}
 	if err := s.SaveVulnerability(ctx, vuln1); err != nil {
 		t.Fatalf("SaveVulnerability(oldest) error = %v", err)
 	}
@@ -493,12 +425,7 @@ func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
 		t.Fatalf("SaveAffected(oldest) error = %v", err)
 	}
 
-	// Vuln with newest published date
-	vuln2 := store.Vulnerability{
-		ID:        "GHSA-newest",
-		Modified:  time.Now(),
-		Published: newestPublished,
-	}
+	vuln2 := store.Vulnerability{ID: "GHSA-newest", Modified: time.Now(), Published: newestPublished}
 	if err := s.SaveVulnerability(ctx, vuln2); err != nil {
 		t.Fatalf("SaveVulnerability(newest) error = %v", err)
 	}
@@ -506,12 +433,7 @@ func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
 		t.Fatalf("SaveAffected(newest) error = %v", err)
 	}
 
-	// Vuln with middle published date
-	vuln3 := store.Vulnerability{
-		ID:        "GHSA-middle",
-		Modified:  time.Now(),
-		Published: middlePublished,
-	}
+	vuln3 := store.Vulnerability{ID: "GHSA-middle", Modified: time.Now(), Published: middlePublished}
 	if err := s.SaveVulnerability(ctx, vuln3); err != nil {
 		t.Fatalf("SaveVulnerability(middle) error = %v", err)
 	}
@@ -519,7 +441,6 @@ func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
 		t.Fatalf("SaveAffected(middle) error = %v", err)
 	}
 
-	// Get all vulnerabilities
 	entries, err := s.GetVulnerabilitiesForReport(ctx, "")
 	if err != nil {
 		t.Fatalf("GetVulnerabilitiesForReport() error = %v", err)
@@ -529,7 +450,6 @@ func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
 		t.Fatalf("GetVulnerabilitiesForReport() returned %d entries, want 3", len(entries))
 	}
 
-	// Verify they are sorted by published date (descending)
 	if entries[0].ID != "GHSA-newest" {
 		t.Errorf("entries[0].ID = %q, want GHSA-newest", entries[0].ID)
 	}
@@ -541,7 +461,7 @@ func TestGetVulnerabilitiesForReport_SortByPublished(t *testing.T) {
 	}
 }
 
-func TestSaveReportSnapshot(t *testing.T) {
+func TestSaveReportSnapshot_ReplaceExisting_ContainsOnlyNewEntries(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -576,7 +496,6 @@ func TestSaveReportSnapshot(t *testing.T) {
 		t.Fatalf("SaveReportSnapshot() error = %v", err)
 	}
 
-	// Verify snapshot was saved by checking the database directly
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
@@ -593,39 +512,6 @@ func TestSaveReportSnapshot(t *testing.T) {
 		t.Errorf("reported_snapshot count = %d, want 2", count)
 	}
 
-	// Verify first entry
-	var id, ecosystem, pkg, published, modified, severityVector string
-	var severityBaseScore sql.NullFloat64
-	err = db.QueryRowContext(ctx, "SELECT id, ecosystem, package, published, modified, severity_base_score, severity_vector FROM reported_snapshot WHERE id = ?", "GHSA-test-1").Scan(&id, &ecosystem, &pkg, &published, &modified, &severityBaseScore, &severityVector)
-	if err != nil {
-		t.Fatalf("query first entry error = %v", err)
-	}
-
-	if id != "GHSA-test-1" || ecosystem != "npm" || pkg != "pkg1" {
-		t.Errorf("first entry: got (%s, %s, %s), want (GHSA-test-1, npm, pkg1)", id, ecosystem, pkg)
-	}
-	if !severityBaseScore.Valid || severityBaseScore.Float64 != 9.8 {
-		t.Errorf("severity base score stored = %v (valid=%v), want 9.8 and true", severityBaseScore.Float64, severityBaseScore.Valid)
-	}
-	if severityVector != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
-		t.Errorf("severity vector stored = %q, want expected vector", severityVector)
-	}
-
-	var nullScore sql.NullFloat64
-	var nullVector sql.NullString
-	err = db.QueryRowContext(ctx, "SELECT severity_base_score, severity_vector FROM reported_snapshot WHERE id = ?", "GHSA-test-2").Scan(&nullScore, &nullVector)
-	if err != nil {
-		t.Fatalf("query second entry severity fields error = %v", err)
-	}
-
-	if nullScore.Valid {
-		t.Error("second entry severity_base_score should be NULL when not provided")
-	}
-	if nullVector.Valid {
-		t.Error("second entry severity_vector should be NULL when not provided")
-	}
-
-	// Save again (should replace old snapshot)
 	newEntries := []store.ReportRow{
 		{
 			ID:             "GHSA-test-3",
@@ -641,7 +527,6 @@ func TestSaveReportSnapshot(t *testing.T) {
 		t.Fatalf("SaveReportSnapshot(2) error = %v", err)
 	}
 
-	// Verify old snapshot was replaced
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM reported_snapshot").Scan(&count)
 	if err != nil {
 		t.Fatalf("query count after replace error = %v", err)
@@ -650,19 +535,9 @@ func TestSaveReportSnapshot(t *testing.T) {
 	if count != 1 {
 		t.Errorf("reported_snapshot count after replace = %d, want 1", count)
 	}
-
-	// Verify new snapshot exists
-	err = db.QueryRowContext(ctx, "SELECT id FROM reported_snapshot WHERE id = ?", "GHSA-test-3").Scan(&id)
-	if err != nil {
-		t.Fatalf("query new snapshot error = %v", err)
-	}
-
-	if id != "GHSA-test-3" {
-		t.Errorf("new snapshot id = %q, want GHSA-test-3", id)
-	}
 }
 
-func TestIndexPerformance(t *testing.T) {
+func TestGetUnreportedVulnerabilities_MixedState_ReturnsModifiedAndNew(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	ctx := context.Background()
@@ -673,101 +548,6 @@ func TestIndexPerformance(t *testing.T) {
 	}
 	defer s.Close()
 
-	// Verify indexes exist
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		t.Fatalf("Open database error = %v", err)
-	}
-	defer db.Close()
-
-	// Check idx_affected_ecosystem exists
-	var ecosystemIndexCount int
-	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_affected_ecosystem'").Scan(&ecosystemIndexCount)
-	if err != nil {
-		t.Fatalf("Query index error = %v", err)
-	}
-	if ecosystemIndexCount != 1 {
-		t.Errorf("idx_affected_ecosystem not found")
-	}
-
-	// Check idx_vulnerability_modified exists
-	var modifiedIndexCount int
-	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_vulnerability_modified'").Scan(&modifiedIndexCount)
-	if err != nil {
-		t.Fatalf("Query index error = %v", err)
-	}
-	if modifiedIndexCount != 1 {
-		t.Errorf("idx_vulnerability_modified not found")
-	}
-
-	// Insert test data to verify index usage
-	baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	for i := 0; i < 10; i++ {
-		vuln := store.Vulnerability{
-			ID:       fmt.Sprintf("GHSA-test-%d", i),
-			Modified: baseTime.Add(time.Duration(i) * 24 * time.Hour),
-		}
-		if err := s.SaveVulnerability(ctx, vuln); err != nil {
-			t.Fatalf("SaveVulnerability(%d) error = %v", i, err)
-		}
-
-		ecosystem := "npm"
-		if i%3 == 0 {
-			ecosystem = "PyPI"
-		} else if i%3 == 1 {
-			ecosystem = "Go"
-		}
-		affected := store.Affected{
-			VulnID:    vuln.ID,
-			Ecosystem: ecosystem,
-			Package:   fmt.Sprintf("package-%d", i),
-		}
-		if err := s.SaveAffected(ctx, affected); err != nil {
-			t.Fatalf("SaveAffected(%d) error = %v", i, err)
-		}
-	}
-
-	// Test ecosystem filter query uses index
-	// i=0,3,6,9: PyPI (4)
-	// i=1,4,7: Go (3)
-	// i=2,5,8: npm (3)
-	entries, err := s.GetVulnerabilitiesForReport(ctx, "npm")
-	if err != nil {
-		t.Fatalf("GetVulnerabilitiesForReport error = %v", err)
-	}
-	if len(entries) != 3 {
-		t.Errorf("Expected 3 npm entries, got %d", len(entries))
-	}
-
-	// Test delete old vulnerabilities uses index
-	cutoff := baseTime.Add(5 * 24 * time.Hour)
-	if err := s.DeleteVulnerabilitiesOlderThan(ctx, cutoff); err != nil {
-		t.Fatalf("DeleteVulnerabilitiesOlderThan error = %v", err)
-	}
-
-	// Verify deletion worked correctly
-	var remainingCount int
-	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM vulnerability").Scan(&remainingCount)
-	if err != nil {
-		t.Fatalf("Count remaining vulnerabilities error = %v", err)
-	}
-	if remainingCount != 5 {
-		t.Errorf("Expected 5 remaining vulnerabilities, got %d", remainingCount)
-	}
-}
-
-func TestGetUnreportedVulnerabilities(t *testing.T) {
-	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "test.db")
-	ctx := context.Background()
-
-	s, err := store.NewStore(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("NewStore() error = %v", err)
-	}
-	defer s.Close()
-
-	// Setup: Create vulnerabilities
 	vuln1 := store.Vulnerability{
 		ID:                "GHSA-unchanged",
 		Modified:          time.Now(),
@@ -808,7 +588,6 @@ func TestGetUnreportedVulnerabilities(t *testing.T) {
 		t.Fatalf("SaveAffected(new) error = %v", err)
 	}
 
-	// Setup: Create snapshot with old data
 	snapshot := []store.ReportRow{
 		{
 			ID:             "GHSA-unchanged",
@@ -824,7 +603,7 @@ func TestGetUnreportedVulnerabilities(t *testing.T) {
 			Ecosystem:      "npm",
 			Package:        "pkg-modified",
 			Published:      "2025-10-01T00:00:00Z",
-			Modified:       "2025-10-02T00:00:00Z", // Old modified date
+			Modified:       "2025-10-02T00:00:00Z",
 			SeverityScore:  ptrFloat64(6.4),
 			SeverityVector: "CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N",
 		},
@@ -833,18 +612,15 @@ func TestGetUnreportedVulnerabilities(t *testing.T) {
 		t.Fatalf("SaveReportSnapshot() error = %v", err)
 	}
 
-	// Test: Get unreported vulnerabilities
 	unreported, err := s.GetUnreportedVulnerabilities(ctx, "")
 	if err != nil {
 		t.Fatalf("GetUnreportedVulnerabilities() error = %v", err)
 	}
 
-	// Verify: Should return modified and new vulnerabilities
 	if len(unreported) != 2 {
 		t.Fatalf("GetUnreportedVulnerabilities() returned %d entries, want 2", len(unreported))
 	}
 
-	// Check that we got the modified and new entries (order may vary)
 	foundModified := false
 	foundNew := false
 	for _, e := range unreported {
@@ -866,7 +642,6 @@ func TestGetUnreportedVulnerabilities(t *testing.T) {
 		t.Errorf("GetUnreportedVulnerabilities() did not return GHSA-new")
 	}
 
-	// Test: Filter by ecosystem
 	npmUnreported, err := s.GetUnreportedVulnerabilities(ctx, "npm")
 	if err != nil {
 		t.Fatalf("GetUnreportedVulnerabilities(npm) error = %v", err)

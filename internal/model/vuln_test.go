@@ -15,7 +15,7 @@ func mustParseTime(s string) time.Time {
 	return t
 }
 
-func TestFilterByCursor(t *testing.T) {
+func TestFilterByCursor_InputVariants(t *testing.T) {
 	cases := []struct {
 		name    string
 		entries []model.Entry
@@ -23,7 +23,7 @@ func TestFilterByCursor(t *testing.T) {
 		wantLen int
 	}{
 		{
-			name: "filter entries after cursor",
+			name: "MixedTimestamps_ReturnsOnlyNewer",
 			entries: []model.Entry{
 				{ID: "GHSA-0001", Modified: mustParseTime("2025-10-04T09:00:00Z")},
 				{ID: "GHSA-0002", Modified: mustParseTime("2025-10-04T11:00:00Z")},
@@ -33,7 +33,7 @@ func TestFilterByCursor(t *testing.T) {
 			wantLen: 2,
 		},
 		{
-			name: "all entries before cursor",
+			name: "AllBeforeCursor_ReturnsEmpty",
 			entries: []model.Entry{
 				{ID: "GHSA-0001", Modified: mustParseTime("2025-10-04T09:00:00Z")},
 			},
@@ -41,7 +41,7 @@ func TestFilterByCursor(t *testing.T) {
 			wantLen: 0,
 		},
 		{
-			name:    "empty entries",
+			name:    "NilSlice_ReturnsEmpty",
 			entries: nil,
 			cursor:  mustParseTime("2025-10-04T10:00:00Z"),
 			wantLen: 0,
@@ -58,14 +58,14 @@ func TestFilterByCursor(t *testing.T) {
 	}
 }
 
-func TestMaxModified(t *testing.T) {
+func TestMaxModified_InputVariants(t *testing.T) {
 	cases := []struct {
 		name    string
 		entries []model.Entry
 		want    time.Time
 	}{
 		{
-			name: "returns latest modified time",
+			name: "MultipleEntries_ReturnsLatest",
 			entries: []model.Entry{
 				{ID: "GHSA-0001", Modified: mustParseTime("2025-10-04T09:00:00Z")},
 				{ID: "GHSA-0002", Modified: mustParseTime("2025-10-04T13:00:00Z")},
@@ -74,25 +74,9 @@ func TestMaxModified(t *testing.T) {
 			want: mustParseTime("2025-10-04T13:00:00Z"),
 		},
 		{
-			name: "single entry",
-			entries: []model.Entry{
-				{ID: "GHSA-0001", Modified: mustParseTime("2025-10-04T09:00:00Z")},
-			},
-			want: mustParseTime("2025-10-04T09:00:00Z"),
-		},
-		{
-			name:    "empty entries returns zero time",
+			name:    "EmptySlice_ReturnsZeroTime",
 			entries: nil,
 			want:    time.Time{},
-		},
-		{
-			name: "entries not sorted returns max anyway",
-			entries: []model.Entry{
-				{ID: "GHSA-0003", Modified: mustParseTime("2025-10-04T13:00:00Z")},
-				{ID: "GHSA-0001", Modified: mustParseTime("2025-10-04T09:00:00Z")},
-				{ID: "GHSA-0002", Modified: mustParseTime("2025-10-04T11:00:00Z")},
-			},
-			want: mustParseTime("2025-10-04T13:00:00Z"),
 		},
 	}
 

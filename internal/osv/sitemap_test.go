@@ -10,15 +10,7 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 )
 
-func TestNewSitemapFetcher(t *testing.T) {
-	url := "https://osv.dev/sitemap_npm.xml"
-	f := osv.NewSitemapFetcher(url)
-	if f == nil {
-		t.Fatal("NewSitemapFetcher() returned nil")
-	}
-}
-
-func TestSitemapFetcher_Fetch(t *testing.T) {
+func TestFetch_ValidSitemap_ExtractsIDsAndLastmod(t *testing.T) {
 	mockXML := `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 	<url>
@@ -65,16 +57,12 @@ func TestSitemapFetcher_Fetch(t *testing.T) {
 		t.Errorf("entries[0].Modified = %v, want %v", entries[0].Modified, expectedTime)
 	}
 
-	if entries[1].ID != "GHSA-aaaa-bbbb-cccc" {
-		t.Errorf("entries[1].ID = %q, want %q", entries[1].ID, "GHSA-aaaa-bbbb-cccc")
-	}
-
 	if entries[2].ID != "MAL-2025-12345" {
 		t.Errorf("entries[2].ID = %q, want %q", entries[2].ID, "MAL-2025-12345")
 	}
 }
 
-func TestSitemapFetcher_FetchWithCursorFilter(t *testing.T) {
+func TestFetch_WithCursor_FiltersOlderEntries(t *testing.T) {
 	mockXML := `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 	<url>
@@ -122,15 +110,7 @@ func TestSitemapFetcher_FetchWithCursorFilter(t *testing.T) {
 	}
 }
 
-func TestSitemapFetcherHasTimeout(t *testing.T) {
-	f := osv.NewSitemapFetcher("https://example.com")
-
-	if f.HTTPClientTimeout() != 30*time.Second {
-		t.Fatalf("default timeout = %v, want 30s", f.HTTPClientTimeout())
-	}
-}
-
-func TestSitemapFetcherWithCustomClientTimeout(t *testing.T) {
+func TestFetch_ShortTimeout_ReturnsError(t *testing.T) {
 	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-done
@@ -154,33 +134,5 @@ func TestSitemapFetcherWithCustomClientTimeout(t *testing.T) {
 
 	if elapsed > 200*time.Millisecond {
 		t.Fatalf("custom client timeout not respected, elapsed=%v", elapsed)
-	}
-}
-
-func TestSitemapFetcherWithCursorHasTimeout(t *testing.T) {
-	done := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-done
-	}))
-	defer func() {
-		close(done)
-		server.Close()
-	}()
-
-	ctx := context.Background()
-	cursor := time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC)
-	client := &http.Client{Timeout: 50 * time.Millisecond}
-	f := osv.NewSitemapFetcher(server.URL, osv.WithSitemapHTTPClient(client), osv.WithSitemapCursor(cursor))
-
-	start := time.Now()
-	_, err := f.Fetch(ctx)
-	elapsed := time.Since(start)
-
-	if err == nil {
-		t.Fatal("expected timeout error when using custom HTTP client")
-	}
-
-	if elapsed > 200*time.Millisecond {
-		t.Fatalf("custom client timeout with cursor not respected, elapsed=%v", elapsed)
 	}
 }

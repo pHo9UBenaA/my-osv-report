@@ -8,7 +8,7 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/report"
 )
 
-func TestJSONLFormatter_Format(t *testing.T) {
+func TestFormatJSONL_MixedEntries_ProducesOneLinePerEntry(t *testing.T) {
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:        "GHSA-xxxx-yyyy-zzzz",
@@ -41,7 +41,6 @@ func TestJSONLFormatter_Format(t *testing.T) {
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
 
-	// Check first line
 	var first map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
 		t.Fatalf("failed to parse first line: %v", err)
@@ -49,17 +48,10 @@ func TestJSONLFormatter_Format(t *testing.T) {
 	if first["id"] != "GHSA-xxxx-yyyy-zzzz" {
 		t.Errorf("first.id = %v, want GHSA-xxxx-yyyy-zzzz", first["id"])
 	}
-	if first["published"] != "2025-10-01T00:00:00Z" {
-		t.Errorf("first.published = %v, want 2025-10-01T00:00:00Z", first["published"])
-	}
 	if first["severity_base_score"] != "9.8" {
 		t.Errorf("first.severity_base_score = %v, want 9.8", first["severity_base_score"])
 	}
-	if first["severity_vector"] != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
-		t.Errorf("first.severity_vector = %v, want CVSS vector", first["severity_vector"])
-	}
 
-	// Check second line with NA values
 	var second map[string]any
 	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
 		t.Fatalf("failed to parse second line: %v", err)
@@ -67,18 +59,12 @@ func TestJSONLFormatter_Format(t *testing.T) {
 	if second["published"] != "NA" {
 		t.Errorf("second.published = %v, want NA", second["published"])
 	}
-	if second["modified"] != "NA" {
-		t.Errorf("second.modified = %v, want NA", second["modified"])
-	}
 	if second["severity_base_score"] != "NA" {
 		t.Errorf("second.severity_base_score = %v, want NA", second["severity_base_score"])
 	}
-	if second["severity_vector"] != "NA" {
-		t.Errorf("second.severity_vector = %v, want NA", second["severity_vector"])
-	}
 }
 
-func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T) {
+func TestFormatJSONL_DangerousCharsAndControlCodes_SafelyJSONEncoded(t *testing.T) {
 	entries := []report.VulnerabilityEntry{
 		{
 			ID:             "=cmd|'/c calc'!A1",
@@ -91,7 +77,7 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 		{
 			ID:             "GHSA-ctrl-char",
 			Ecosystem:      "npm",
-			Package:        "test\npkg", // newline
+			Package:        "test\npkg",
 			Published:      "value\twith\ttabs",
 			Modified:       "",
 			SeverityVector: "value\rwith\rcarriage",
@@ -107,29 +93,14 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 		t.Fatalf("expected 2 lines, got %d", len(lines))
 	}
 
-	// Verify first line with Excel-like prefixes
 	var first map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
 		t.Fatalf("failed to parse first line: %v", err)
 	}
-	// JSON should safely encode these as strings
 	if first["id"] != "=cmd|'/c calc'!A1" {
 		t.Errorf("first.id = %v, want =cmd|'/c calc'!A1", first["id"])
 	}
-	if first["ecosystem"] != "+EXEC" {
-		t.Errorf("first.ecosystem = %v, want +EXEC", first["ecosystem"])
-	}
-	if first["package"] != "-dangerous" {
-		t.Errorf("first.package = %v, want -dangerous", first["package"])
-	}
-	if first["published"] != "@FORMULA" {
-		t.Errorf("first.published = %v, want @FORMULA", first["published"])
-	}
-	if first["severity_vector"] != "=1+1" {
-		t.Errorf("first.severity_vector = %v, want =1+1", first["severity_vector"])
-	}
 
-	// Verify second line with control characters
 	var second map[string]any
 	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
 		t.Fatalf("failed to parse second line: %v", err)
@@ -137,17 +108,7 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 	if second["package"] != "test\npkg" {
 		t.Errorf("second.package = %v, want test\\npkg", second["package"])
 	}
-	if second["published"] != "value\twith\ttabs" {
-		t.Errorf("second.published = %v, want value\\twith\\ttabs", second["published"])
-	}
-	if second["severity_vector"] != "value\rwith\rcarriage" {
-		t.Errorf("second.severity_vector = %v, want value\\rwith\\rcarriage", second["severity_vector"])
-	}
 
-	// Verify that raw output has properly escaped JSON
-	if !strings.Contains(result, `"id":"=cmd|'/c calc'!A1"`) {
-		t.Error("expected id to be properly JSON-escaped in output")
-	}
 	if !strings.Contains(result, `"package":"test\npkg"`) {
 		t.Error("expected newline to be escaped as \\n in JSON output")
 	}

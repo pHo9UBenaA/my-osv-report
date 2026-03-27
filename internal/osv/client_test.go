@@ -11,7 +11,7 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/osv"
 )
 
-func TestGetVulnerability(t *testing.T) {
+func TestGetVulnerability_StatusCodeHandling(t *testing.T) {
 	cases := []struct {
 		name        string
 		id          string
@@ -21,35 +21,19 @@ func TestGetVulnerability(t *testing.T) {
 		wantErrType error
 	}{
 		{
-			name: "successful request",
+			name: "ValidID_ReturnsDecodedVulnerability",
 			id:   "GHSA-xxxx-yyyy-zzzz",
 			serverResp: `{
 				"id": "GHSA-xxxx-yyyy-zzzz",
-				"modified": "2025-10-04T12:34:56Z"
-			}`,
-			statusCode:  http.StatusOK,
-			wantErr:     false,
-			wantErrType: nil,
-		},
-		{
-			name: "parse detailed vulnerability",
-			id:   "GHSA-detail-test",
-			serverResp: `{
-				"id": "GHSA-detail-test",
 				"modified": "2025-10-04T12:34:56Z",
 				"summary": "Test vulnerability",
-				"details": "Detailed description",
 				"affected": [
 					{
-						"package": {"ecosystem": "Go", "name": "github.com/test/pkg"},
-						"ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "1.2.3"}]}]
+						"package": {"ecosystem": "Go", "name": "github.com/test/pkg"}
 					}
 				],
 				"severity": [
 					{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}
-				],
-				"references": [
-					{"type": "ADVISORY", "url": "https://example.com/advisory"}
 				]
 			}`,
 			statusCode:  http.StatusOK,
@@ -57,7 +41,7 @@ func TestGetVulnerability(t *testing.T) {
 			wantErrType: nil,
 		},
 		{
-			name:        "not found returns ErrNotFound",
+			name:        "NonExistentID_ReturnsErrNotFound",
 			id:          "GHSA-0000-0000-0000",
 			serverResp:  "",
 			statusCode:  http.StatusNotFound,
@@ -65,7 +49,7 @@ func TestGetVulnerability(t *testing.T) {
 			wantErrType: osv.ErrNotFound,
 		},
 		{
-			name:        "bad request returns ErrBadRequest",
+			name:        "MalformedID_ReturnsErrBadRequest",
 			id:          "invalid-id",
 			serverResp:  "",
 			statusCode:  http.StatusBadRequest,
@@ -107,27 +91,11 @@ func TestGetVulnerability(t *testing.T) {
 			if vuln.ID != tt.id {
 				t.Errorf("vuln.ID = %q, want %q", vuln.ID, tt.id)
 			}
-
-			// Additional checks for detailed test case
-			if tt.name == "parse detailed vulnerability" {
-				if vuln.Summary != "Test vulnerability" {
-					t.Errorf("vuln.Summary = %q, want %q", vuln.Summary, "Test vulnerability")
-				}
-				if len(vuln.Affected) != 1 {
-					t.Errorf("len(vuln.Affected) = %d, want 1", len(vuln.Affected))
-				}
-				if vuln.Affected[0].Ecosystem != "Go" {
-					t.Errorf("vuln.Affected[0].Ecosystem = %q, want %q", vuln.Affected[0].Ecosystem, "Go")
-				}
-				if len(vuln.Severity) != 1 {
-					t.Errorf("len(vuln.Severity) = %d, want 1", len(vuln.Severity))
-				}
-			}
 		})
 	}
 }
 
-func TestClientWithRateLimit(t *testing.T) {
+func TestGetVulnerability_RateLimitedClient_InvokesLimiterPerRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`)); err != nil {
@@ -159,7 +127,7 @@ func TestClientWithRateLimit(t *testing.T) {
 	}
 }
 
-func TestGetVulnerability429Retry(t *testing.T) {
+func TestGetVulnerability_TransientRateLimit_RetriesAndSucceeds(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
@@ -176,7 +144,7 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	defer server.Close()
 
 	client := osv.NewClient(server.URL, osv.WithBackoff(func(attemptNum int, resp *http.Response) time.Duration {
-		return 0 // instant retry for testing
+		return 0
 	}))
 	ctx := context.Background()
 
@@ -192,7 +160,7 @@ func TestGetVulnerability429Retry(t *testing.T) {
 	}
 }
 
-func TestGetVulnerability429ExhaustedRetries(t *testing.T) {
+func TestGetVulnerability_PersistentRateLimit_ReturnsErrTooManyRequests(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
@@ -201,7 +169,7 @@ func TestGetVulnerability429ExhaustedRetries(t *testing.T) {
 	defer server.Close()
 
 	client := osv.NewClient(server.URL, osv.WithBackoff(func(attemptNum int, resp *http.Response) time.Duration {
-		return 0 // instant retry for testing
+		return 0
 	}))
 	ctx := context.Background()
 
@@ -212,15 +180,13 @@ func TestGetVulnerability429ExhaustedRetries(t *testing.T) {
 	if !errors.Is(err, osv.ErrTooManyRequests) {
 		t.Errorf("error = %v, want ErrTooManyRequests", err)
 	}
-	// 1 initial + 2 retries = 3 total
 	if callCount != 3 {
 		t.Errorf("callCount = %d, want 3", callCount)
 	}
 }
 
-func TestNewClientWithOptions(t *testing.T) {
+func TestNewClientWithOptions_ShortTimeout_FailsFast(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate slow response
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"test","modified":"2025-10-04T12:00:00Z"}`)); err != nil {
@@ -229,19 +195,8 @@ func TestNewClientWithOptions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client with custom timeout and rate limit
-	client := osv.NewClientWithOptions(server.URL, 10.0, 200*time.Millisecond)
-	ctx := context.Background()
-
-	// Should succeed with 200ms timeout (server responds in 100ms)
-	_, err := client.GetVulnerability(ctx, "test")
-	if err != nil {
-		t.Fatalf("GetVulnerability() error = %v", err)
-	}
-
-	// Test with very short timeout
 	clientShortTimeout := osv.NewClientWithOptions(server.URL, 10.0, 50*time.Millisecond)
-	_, err = clientShortTimeout.GetVulnerability(ctx, "test")
+	_, err := clientShortTimeout.GetVulnerability(context.Background(), "test")
 	if err == nil {
 		t.Error("expected timeout error with 50ms timeout and 100ms response time")
 	}

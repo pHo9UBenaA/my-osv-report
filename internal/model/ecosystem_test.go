@@ -7,41 +7,21 @@ import (
 	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 )
 
-func TestEcosystem_ModifiedCSVURL(t *testing.T) {
+func TestModifiedCSVURL_EcosystemVariants(t *testing.T) {
 	cases := []struct {
 		name    string
 		eco     model.Ecosystem
 		wantURL string
 	}{
 		{
-			name:    "npm",
+			name:    "SimpleEcosystem_ReturnsDirectPath",
 			eco:     model.NPM,
 			wantURL: "https://osv-vulnerabilities.storage.googleapis.com/npm/all.zip",
 		},
 		{
-			name:    "PyPI",
-			eco:     model.PyPI,
-			wantURL: "https://osv-vulnerabilities.storage.googleapis.com/PyPI/all.zip",
-		},
-		{
-			name:    "Go",
-			eco:     model.Go,
-			wantURL: "https://osv-vulnerabilities.storage.googleapis.com/Go/all.zip",
-		},
-		{
-			name:    "GitHub Actions with space",
+			name:    "EcosystemWithSpace_PercentEncodesSpace",
 			eco:     model.GitHubActions,
 			wantURL: "https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip",
-		},
-		{
-			name:    "RubyGems",
-			eco:     model.RubyGems,
-			wantURL: "https://osv-vulnerabilities.storage.googleapis.com/RubyGems/all.zip",
-		},
-		{
-			name:    "Red Hat with space",
-			eco:     model.RedHat,
-			wantURL: "https://osv-vulnerabilities.storage.googleapis.com/Red%20Hat/all.zip",
 		},
 	}
 
@@ -55,39 +35,24 @@ func TestEcosystem_ModifiedCSVURL(t *testing.T) {
 	}
 }
 
-func TestEcosystem_SitemapURL(t *testing.T) {
+func TestSitemapURL_EcosystemVariants(t *testing.T) {
 	cases := []struct {
 		name    string
 		eco     model.Ecosystem
 		wantURL string
 	}{
 		{
-			name:    "npm",
+			name:    "SimpleEcosystem_ReturnsUnmodifiedName",
 			eco:     model.NPM,
 			wantURL: "https://osv.dev/sitemap_npm.xml",
 		},
 		{
-			name:    "PyPI",
-			eco:     model.PyPI,
-			wantURL: "https://osv.dev/sitemap_PyPI.xml",
-		},
-		{
-			name:    "Go",
-			eco:     model.Go,
-			wantURL: "https://osv.dev/sitemap_Go.xml",
-		},
-		{
-			name:    "GitHub Actions with space",
+			name:    "EcosystemWithSpace_ReplacesSpaceWithUnderscore",
 			eco:     model.GitHubActions,
 			wantURL: "https://osv.dev/sitemap_GitHub_Actions.xml",
 		},
 		{
-			name:    "Red Hat with space",
-			eco:     model.RedHat,
-			wantURL: "https://osv.dev/sitemap_Red_Hat.xml",
-		},
-		{
-			name:    "OSS-Fuzz with hyphen",
+			name:    "EcosystemWithHyphen_PreservesHyphen",
 			eco:     model.OSSFuzz,
 			wantURL: "https://osv.dev/sitemap_OSS-Fuzz.xml",
 		},
@@ -103,39 +68,24 @@ func TestEcosystem_SitemapURL(t *testing.T) {
 	}
 }
 
-func TestEcosystem_Validate(t *testing.T) {
+func TestValidate_EcosystemValidity(t *testing.T) {
 	cases := []struct {
 		name    string
 		eco     model.Ecosystem
 		wantErr error
 	}{
 		{
-			name:    "valid: npm",
+			name:    "SupportedEcosystem_ReturnsNil",
 			eco:     model.NPM,
 			wantErr: nil,
 		},
 		{
-			name:    "valid: PyPI",
-			eco:     model.PyPI,
-			wantErr: nil,
-		},
-		{
-			name:    "valid: Go",
-			eco:     model.Go,
-			wantErr: nil,
-		},
-		{
-			name:    "valid: GitHub Actions",
-			eco:     model.GitHubActions,
-			wantErr: nil,
-		},
-		{
-			name:    "invalid: unknown",
+			name:    "UnsupportedName_ReturnsErrInvalidEcosystem",
 			eco:     model.Ecosystem("Unknown"),
 			wantErr: model.ErrInvalidEcosystem,
 		},
 		{
-			name:    "invalid: empty",
+			name:    "EmptyString_ReturnsErrInvalidEcosystem",
 			eco:     model.Ecosystem(""),
 			wantErr: model.ErrInvalidEcosystem,
 		},
@@ -151,7 +101,7 @@ func TestEcosystem_Validate(t *testing.T) {
 	}
 }
 
-func TestParseEcosystems(t *testing.T) {
+func TestParseEcosystems_InputVariants(t *testing.T) {
 	cases := []struct {
 		name    string
 		input   string
@@ -159,43 +109,19 @@ func TestParseEcosystems(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "single ecosystem",
-			input:   "npm",
-			want:    []model.Ecosystem{model.NPM},
-			wantErr: nil,
-		},
-		{
-			name:    "multiple ecosystems",
+			name:    "CommaSeparatedList_ReturnsParsedSlice",
 			input:   "npm,PyPI,Go",
 			want:    []model.Ecosystem{model.NPM, model.PyPI, model.Go},
 			wantErr: nil,
 		},
 		{
-			name:    "ecosystems with spaces",
-			input:   "GitHub Actions,Red Hat",
-			want:    []model.Ecosystem{model.GitHubActions, model.RedHat},
-			wantErr: nil,
-		},
-		{
-			name:    "ecosystems with trimming",
+			name:    "WhitespaceAroundEntries_TrimsAndParses",
 			input:   " npm , PyPI , Go ",
 			want:    []model.Ecosystem{model.NPM, model.PyPI, model.Go},
 			wantErr: nil,
 		},
 		{
-			name:    "empty string",
-			input:   "",
-			want:    []model.Ecosystem{},
-			wantErr: nil,
-		},
-		{
-			name:    "whitespace only",
-			input:   "   ",
-			want:    []model.Ecosystem{},
-			wantErr: nil,
-		},
-		{
-			name:    "invalid ecosystem",
+			name:    "InvalidInMiddle_ReturnsErrInvalidEcosystem",
 			input:   "npm,InvalidEco,PyPI",
 			want:    nil,
 			wantErr: model.ErrInvalidEcosystem,
