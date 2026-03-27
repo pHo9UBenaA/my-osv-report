@@ -19,7 +19,7 @@ jobs:
     name: CI
     permissions:
       contents: read # needed for actions/checkout
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 15
 
     steps:
