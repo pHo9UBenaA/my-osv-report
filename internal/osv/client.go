@@ -23,14 +23,6 @@ var ErrBadRequest = errors.New("bad request")
 // ErrTooManyRequests is returned when rate limit is exceeded (429).
 var ErrTooManyRequests = errors.New("too many requests")
 
-// Severity is kept exported for backward compatibility with internal/severity/.
-// It will be removed when internal/severity/ is deleted in Wave 5.
-type Severity = jsonSeverity
-
-// Entry is an alias for model.Entry, kept for backward compatibility
-// with packages that still import osv.Entry. Will be removed after migration.
-type Entry = model.Entry
-
 // JSON wire types for OSV API deserialization (unexported).
 
 type jsonPackage struct {
