@@ -42,7 +42,7 @@ func TestJSONLFormatter_Format(t *testing.T) {
 	}
 
 	// Check first line
-	var first map[string]interface{}
+	var first map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
 		t.Fatalf("failed to parse first line: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestJSONLFormatter_Format(t *testing.T) {
 	}
 
 	// Check second line with NA values
-	var second map[string]interface{}
+	var second map[string]any
 	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
 		t.Fatalf("failed to parse second line: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 	}
 
 	// Verify first line with Excel-like prefixes
-	var first map[string]interface{}
+	var first map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
 		t.Fatalf("failed to parse first line: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestJSONLFormatter_SafetyForExcelPrefixesAndControlCharacters(t *testing.T)
 	}
 
 	// Verify second line with control characters
-	var second map[string]interface{}
+	var second map[string]any
 	if err := json.Unmarshal([]byte(lines[1]), &second); err != nil {
 		t.Fatalf("failed to parse second line: %v", err)
 	}
