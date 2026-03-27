@@ -24,7 +24,6 @@ REPORT FLAGS
 
 ENVIRONMENT VARIABLES
   OSV_ECOSYSTEMS           Comma-separated ecosystems (e.g. npm,pypi,go)
-  OSV_API_BASE_URL         OSV API base URL (default: https://api.osv.dev)
   OSV_DB_PATH              Path to the local database (default: ./osv.db)
   OSV_DATA_RETENTION_DAYS  Data retention period in days (default: 7)
 
