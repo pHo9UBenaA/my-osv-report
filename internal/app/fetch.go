@@ -56,7 +56,7 @@ func Fetch(ctx context.Context, cfg *config.Config, client Client, st FetchStore
 
 	var errs []error
 	for _, eco := range cfg.Ecosystems {
-		if err := processEcosystem(ctx, eco, st, client, cfg); err != nil {
+		if err := processEcosystem(ctx, eco, st, client); err != nil {
 			slog.Error("failed to process ecosystem", "ecosystem", eco, "error", err)
 			errs = append(errs, err)
 			continue
@@ -76,7 +76,7 @@ func Fetch(ctx context.Context, cfg *config.Config, client Client, st FetchStore
 	return nil
 }
 
-func processEcosystem(ctx context.Context, eco model.Ecosystem, st FetchStore, client Client, cfg *config.Config) error {
+func processEcosystem(ctx context.Context, eco model.Ecosystem, st FetchStore, client Client) error {
 	source := eco.String()
 	slog.Info("processing ecosystem", "ecosystem", source)
 
@@ -100,34 +100,30 @@ func processEcosystem(ctx context.Context, eco model.Ecosystem, st FetchStore, c
 
 	slog.Info("fetched entries from sitemap", "ecosystem", source, "count", len(entries))
 
-	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
-	retentionFiltered := model.FilterByCursor(entries, retentionCutoff)
-	slog.Info("filtered by retention", "ecosystem", source, "count", len(retentionFiltered), "cutoff", retentionCutoff)
-
-	if len(retentionFiltered) == 0 {
+	if len(entries) == 0 {
 		slog.Info("no new entries to process", "ecosystem", source)
 		return nil
 	}
 
-	for i := 0; i < len(retentionFiltered); i += config.BatchSize {
+	for i := 0; i < len(entries); i += config.BatchSize {
 		end := i + config.BatchSize
-		if end > len(retentionFiltered) {
-			end = len(retentionFiltered)
+		if end > len(entries) {
+			end = len(entries)
 		}
 
-		batch := retentionFiltered[i:end]
-		slog.Info("processing batch", "ecosystem", source, "batchStart", i, "batchEnd", end, "total", len(retentionFiltered))
+		batch := entries[i:end]
+		slog.Info("processing batch", "ecosystem", source, "batchStart", i, "batchEnd", end, "total", len(entries))
 
 		if err := processEntriesParallel(ctx, client, st, batch, config.MaxConcurrency); err != nil {
 			return fmt.Errorf("process batch: %w", err)
 		}
 	}
 
-	latestModified := model.MaxModified(retentionFiltered)
+	latestModified := model.MaxModified(entries)
 	if err := st.SaveCursor(ctx, source, latestModified); err != nil {
 		return fmt.Errorf("save cursor: %w", err)
 	}
 
-	slog.Info("completed ecosystem", "ecosystem", source, "processed", len(retentionFiltered), "cursor", latestModified)
+	slog.Info("completed ecosystem", "ecosystem", source, "processed", len(entries), "cursor", latestModified)
 	return nil
 }
