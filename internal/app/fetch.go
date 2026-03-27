@@ -103,9 +103,6 @@ func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store,
 		return nil
 	}
 
-	adapter := &storeAdapter{st}
-	scraper := osv.NewScraper(client.(*osv.Client), adapter)
-
 	for i := 0; i < len(retentionFiltered); i += cfg.BatchSize {
 		end := i + cfg.BatchSize
 		if end > len(retentionFiltered) {
@@ -115,7 +112,7 @@ func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store,
 		batch := retentionFiltered[i:end]
 		slog.Info("processing batch", "ecosystem", source, "batchStart", i, "batchEnd", end, "total", len(retentionFiltered))
 
-		if err := scraper.ProcessEntriesParallel(ctx, batch, cfg.MaxConcurrency); err != nil {
+		if err := processEntriesParallel(ctx, client, st, batch, cfg.MaxConcurrency); err != nil {
 			return fmt.Errorf("process batch: %w", err)
 		}
 	}
