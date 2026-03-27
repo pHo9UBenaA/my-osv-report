@@ -4,15 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/pHo9UBenaA/osv-scraper/internal/config"
 	"github.com/pHo9UBenaA/osv-scraper/internal/model"
 )
 
 func TestLoad(t *testing.T) {
-	// Set environment variables for test
-	os.Setenv("OSV_API_BASE_URL", "https://api.osv.dev")
 	os.Setenv("OSV_ECOSYSTEMS", "npm,PyPI,Go")
 	os.Setenv("OSV_DB_PATH", "./test.db")
 	os.Setenv("OSV_DATA_RETENTION_DAYS", "14")
@@ -21,10 +18,6 @@ func TestLoad(t *testing.T) {
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
-	}
-
-	if cfg.APIBaseURL != "https://api.osv.dev" {
-		t.Errorf("APIBaseURL = %q, want %q", cfg.APIBaseURL, "https://api.osv.dev")
 	}
 
 	if cfg.DBPath != "./test.db" {
@@ -46,46 +39,12 @@ func TestLoad(t *testing.T) {
 	}
 }
 
-func TestLoadPerformanceSettings(t *testing.T) {
-	// Set environment variables for test
-	os.Setenv("OSV_RATE_LIMIT", "20.5")
-	os.Setenv("OSV_MAX_CONCURRENCY", "10")
-	os.Setenv("OSV_BATCH_SIZE", "200")
-	os.Setenv("OSV_HTTP_TIMEOUT", "60")
-	defer os.Clearenv()
-
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if cfg.RateLimit != 20.5 {
-		t.Errorf("RateLimit = %f, want 20.5", cfg.RateLimit)
-	}
-
-	if cfg.MaxConcurrency != 10 {
-		t.Errorf("MaxConcurrency = %d, want 10", cfg.MaxConcurrency)
-	}
-
-	if cfg.BatchSize != 200 {
-		t.Errorf("BatchSize = %d, want 200", cfg.BatchSize)
-	}
-
-	if cfg.HTTPTimeout != 60*time.Second {
-		t.Errorf("HTTPTimeout = %v, want 60s", cfg.HTTPTimeout)
-	}
-}
-
 func TestLoadDefaults(t *testing.T) {
 	os.Clearenv()
 
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
-	}
-
-	if cfg.APIBaseURL == "" {
-		t.Error("APIBaseURL should have a default value")
 	}
 
 	if cfg.DBPath == "" {
@@ -99,32 +58,22 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.RetentionDays != 7 {
 		t.Errorf("RetentionDays = %d, want 7 (default)", cfg.RetentionDays)
 	}
+}
 
-	// Check performance defaults
-	if cfg.RateLimit != 10.0 {
-		t.Errorf("RateLimit = %f, want 10.0 (default)", cfg.RateLimit)
-	}
+func TestLoadInvalidRetentionDays(t *testing.T) {
+	os.Clearenv()
+	os.Setenv("OSV_DATA_RETENTION_DAYS", "abc")
 
-	if cfg.MaxConcurrency != 5 {
-		t.Errorf("MaxConcurrency = %d, want 5 (default)", cfg.MaxConcurrency)
-	}
-
-	if cfg.BatchSize != 100 {
-		t.Errorf("BatchSize = %d, want 100 (default)", cfg.BatchSize)
-	}
-
-	if cfg.HTTPTimeout != 30*time.Second {
-		t.Errorf("HTTPTimeout = %v, want 30s (default)", cfg.HTTPTimeout)
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("Load() should return error for invalid retention days")
 	}
 }
 
 func TestLoadFromDotEnv(t *testing.T) {
-	// Create temporary directory
 	tempDir := t.TempDir()
 
-	// Create .env file
-	envContent := `OSV_API_BASE_URL=https://test.osv.dev
-OSV_ECOSYSTEMS=npm,Go
+	envContent := `OSV_ECOSYSTEMS=npm,Go
 OSV_DB_PATH=./dotenv.db
 OSV_DATA_RETENTION_DAYS=30`
 
@@ -133,7 +82,6 @@ OSV_DATA_RETENTION_DAYS=30`
 		t.Fatalf("Failed to create .env file: %v", err)
 	}
 
-	// Change to temp directory
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current directory: %v", err)
@@ -147,18 +95,11 @@ OSV_DATA_RETENTION_DAYS=30`
 		}
 	}()
 
-	// Clear environment variables
 	os.Clearenv()
 
-	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
-	}
-
-	// Verify values from .env file
-	if cfg.APIBaseURL != "https://test.osv.dev" {
-		t.Errorf("APIBaseURL = %q, want %q", cfg.APIBaseURL, "https://test.osv.dev")
 	}
 
 	if cfg.DBPath != "./dotenv.db" {

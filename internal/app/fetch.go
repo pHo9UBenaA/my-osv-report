@@ -19,16 +19,6 @@ type Client interface {
 	GetVulnerability(ctx context.Context, id string) (*model.Vulnerability, error)
 }
 
-// FetchStore defines the interface for persisting fetch results.
-type FetchStore interface {
-	GetCursor(ctx context.Context, source string) (time.Time, error)
-	SaveVulnerability(ctx context.Context, v store.Vulnerability) error
-	SaveAffected(ctx context.Context, a store.Affected) error
-	SaveTombstone(ctx context.Context, id string) error
-	SaveCursor(ctx context.Context, source string, cursor time.Time) error
-	DeleteVulnerabilitiesOlderThan(ctx context.Context, cutoff time.Time) error
-}
-
 // Fetch retrieves vulnerability data from OSV API for configured ecosystems.
 func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 	if len(cfg.Ecosystems) == 0 {
@@ -36,13 +26,9 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 		return nil
 	}
 
-	slog.Info("starting vulnerability fetch",
-		"ecosystems", cfg.Ecosystems,
-		"rateLimit", cfg.RateLimit,
-		"maxConcurrency", cfg.MaxConcurrency,
-		"batchSize", cfg.BatchSize)
+	slog.Info("starting vulnerability fetch", "ecosystems", cfg.Ecosystems)
 
-	client := osv.NewClientWithOptions(cfg.APIBaseURL, cfg.RateLimit, cfg.HTTPTimeout)
+	client := osv.NewClientWithOptions(config.APIBaseURL, config.RateLimit, config.HTTPTimeout)
 	retentionCutoff := time.Now().AddDate(0, 0, -cfg.RetentionDays)
 
 	var errs []error
@@ -54,7 +40,6 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 		}
 	}
 
-	// B4: retention delete moved outside per-ecosystem loop
 	if err := st.DeleteVulnerabilitiesOlderThan(ctx, retentionCutoff); err != nil {
 		return fmt.Errorf("delete old vulnerabilities: %w", err)
 	}
@@ -68,14 +53,12 @@ func Fetch(ctx context.Context, cfg *config.Config, st *store.Store) error {
 	return nil
 }
 
-// B3: replaced anonymous interface with model.Ecosystem
 func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store, client Client, cfg *config.Config) error {
 	source := eco.String()
 	slog.Info("processing ecosystem", "ecosystem", source)
 
 	lastCursor, err := st.GetCursor(ctx, source)
 	if err != nil {
-		// B2: use errors.Is instead of ==
 		if errors.Is(err, sql.ErrNoRows) {
 			lastCursor = time.Time{}
 			slog.Info("no cursor found, starting from beginning", "ecosystem", source)
@@ -103,8 +86,8 @@ func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store,
 		return nil
 	}
 
-	for i := 0; i < len(retentionFiltered); i += cfg.BatchSize {
-		end := i + cfg.BatchSize
+	for i := 0; i < len(retentionFiltered); i += config.BatchSize {
+		end := i + config.BatchSize
 		if end > len(retentionFiltered) {
 			end = len(retentionFiltered)
 		}
@@ -112,12 +95,11 @@ func processEcosystem(ctx context.Context, eco model.Ecosystem, st *store.Store,
 		batch := retentionFiltered[i:end]
 		slog.Info("processing batch", "ecosystem", source, "batchStart", i, "batchEnd", end, "total", len(retentionFiltered))
 
-		if err := processEntriesParallel(ctx, client, st, batch, cfg.MaxConcurrency); err != nil {
+		if err := processEntriesParallel(ctx, client, st, batch, config.MaxConcurrency); err != nil {
 			return fmt.Errorf("process batch: %w", err)
 		}
 	}
 
-	// B1: use model.MaxModified instead of last element
 	latestModified := model.MaxModified(retentionFiltered)
 	if err := st.SaveCursor(ctx, source, latestModified); err != nil {
 		return fmt.Errorf("save cursor: %w", err)

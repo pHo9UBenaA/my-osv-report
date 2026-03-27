@@ -11,25 +11,21 @@ import (
 )
 
 const (
-	defaultAPIBaseURL     = "https://api.osv.dev"
-	defaultDBPath         = "./osv.db"
-	defaultRetentionDays  = 7
-	defaultRateLimit      = 10.0 // requests per second
-	defaultMaxConcurrency = 5
-	defaultBatchSize      = 100
-	defaultHTTPTimeout    = 30 * time.Second
+	APIBaseURL     = "https://api.osv.dev"
+	RateLimit      = 10.0 // requests per second
+	MaxConcurrency = 5
+	BatchSize      = 100
+	HTTPTimeout    = 30 * time.Second
+
+	defaultDBPath        = "./osv.db"
+	defaultRetentionDays = 7
 )
 
-// Config holds application configuration.
+// Config holds application configuration loaded from environment variables.
 type Config struct {
-	APIBaseURL     string
-	DBPath         string
-	Ecosystems     []model.Ecosystem
-	RetentionDays  int
-	RateLimit      float64
-	MaxConcurrency int
-	BatchSize      int
-	HTTPTimeout    time.Duration
+	DBPath        string
+	Ecosystems    []model.Ecosystem
+	RetentionDays int
 }
 
 // Load loads configuration from environment variables.
@@ -46,35 +42,10 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parse OSV_DATA_RETENTION_DAYS: %w", err)
 	}
 
-	rateLimit, err := getEnvFloat("OSV_RATE_LIMIT", defaultRateLimit)
-	if err != nil {
-		return nil, fmt.Errorf("parse OSV_RATE_LIMIT: %w", err)
-	}
-
-	maxConcurrency, err := getEnvInt("OSV_MAX_CONCURRENCY", defaultMaxConcurrency)
-	if err != nil {
-		return nil, fmt.Errorf("parse OSV_MAX_CONCURRENCY: %w", err)
-	}
-
-	batchSize, err := getEnvInt("OSV_BATCH_SIZE", defaultBatchSize)
-	if err != nil {
-		return nil, fmt.Errorf("parse OSV_BATCH_SIZE: %w", err)
-	}
-
-	httpTimeout, err := getEnvDuration("OSV_HTTP_TIMEOUT", defaultHTTPTimeout)
-	if err != nil {
-		return nil, fmt.Errorf("parse OSV_HTTP_TIMEOUT: %w", err)
-	}
-
 	return &Config{
-		APIBaseURL:     getEnv("OSV_API_BASE_URL", defaultAPIBaseURL),
-		DBPath:         getEnv("OSV_DB_PATH", defaultDBPath),
-		Ecosystems:     ecosystems,
-		RetentionDays:  retentionDays,
-		RateLimit:      rateLimit,
-		MaxConcurrency: maxConcurrency,
-		BatchSize:      batchSize,
-		HTTPTimeout:    httpTimeout,
+		DBPath:        getEnv("OSV_DB_PATH", defaultDBPath),
+		Ecosystems:    ecosystems,
+		RetentionDays: retentionDays,
 	}, nil
 }
 
@@ -85,7 +56,6 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// B11: return errors from env parsing instead of silently falling back to defaults
 func getEnvInt(key string, defaultValue int) (int, error) {
 	str := os.Getenv(key)
 	if str == "" {
@@ -99,34 +69,4 @@ func getEnvInt(key string, defaultValue int) (int, error) {
 		return 0, fmt.Errorf("value must be positive, got %d", val)
 	}
 	return val, nil
-}
-
-func getEnvFloat(key string, defaultValue float64) (float64, error) {
-	str := os.Getenv(key)
-	if str == "" {
-		return defaultValue, nil
-	}
-	val, err := strconv.ParseFloat(str, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid float %q: %w", str, err)
-	}
-	if val <= 0 {
-		return 0, fmt.Errorf("value must be positive, got %f", val)
-	}
-	return val, nil
-}
-
-func getEnvDuration(key string, defaultValue time.Duration) (time.Duration, error) {
-	str := os.Getenv(key)
-	if str == "" {
-		return defaultValue, nil
-	}
-	seconds, err := strconv.Atoi(str)
-	if err != nil {
-		return 0, fmt.Errorf("invalid integer %q: %w", str, err)
-	}
-	if seconds <= 0 {
-		return 0, fmt.Errorf("value must be positive, got %d", seconds)
-	}
-	return time.Duration(seconds) * time.Second, nil
 }
