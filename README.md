@@ -2,9 +2,6 @@
 
 Fetches vulnerability data directly from the [OSV](https://osv.dev/) ecosystem, stores it locally in SQLite, and generates snapshot or differential reports for ecosystems such as npm, PyPI, Go, and Maven.
 
-> [!WARNING]
-> This tool has not been reviewed by outside contributors. Validate the data and behavior before relying on it for critical decisions.
-
 ## What this tool does
 
 * Fetches vulnerability data from the OSV ecosystem
